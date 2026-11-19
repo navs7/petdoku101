@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Unique-username registry. A name can be claimed once, never changed or freed.
+    match /usernames/{name} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && name.matches('^[a-z0-9_]{3,16}$')
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt']);
+      allow update, delete: if false;
+    }
+
+    // Player profiles. Creation must be in the same batch as the username claim.
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.username.matches('^[a-z0-9_]{3,16}$')
+        && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.username == resource.data.username;
+      allow delete: if false;
+    }
+
+    // Daily results: days/{YYYY-MM-DD_level|time}/entries/{uid}. One write per player per board.
+    match /days/{dayId}/entries/{uid} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && dayId.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}_(level|time)$')
+        && request.resource.data.uid == uid
+        && request.resource.data.username == get(/databases/$(database)/documents/users/$(uid)).data.username
+        && request.resource.data.sortKey is number
+        && request.resource.data.score is number;
+      allow update, delete: if false;
+    }
+  }
+}

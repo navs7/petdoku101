@@ -265,6 +265,7 @@ function me() {
 
 // ---------------- game ----------------
 const X_SVG = '<svg class="x" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="#fff" stroke-width="3.6" stroke-linecap="round" fill="none"/></svg>';
+const RED_X = '<svg class="x bad-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="#fff" stroke-width="6.4" stroke-linecap="round" fill="none"/><path d="M5 5l14 14M19 5L5 19" stroke="#D32F45" stroke-width="3.6" stroke-linecap="round" fill="none"/></svg>';
 const COLORS = ['#E3B93F', '#E6A8C7', '#C45C8E', '#8E7BD0', '#4FB3A6', '#5B9BE0', '#7DBE5A', '#EE8A4C', '#E0645C', '#A79384'];
 function stopTimer() { clearInterval(timer); timer = null; }
 function startGame(mode, date) {
@@ -328,8 +329,8 @@ function paint() {
     const r = (i / n) | 0, c = i % n, v = cells[i];
     const cls = ['cell', c < n - 1 && regions[i] !== regions[i + 1] && 'rB', r < n - 1 && regions[i] !== regions[i + n] && 'bB', c === n - 1 && 'eR', r === n - 1 && 'eB',
       bad.has(i) && 'bad', i === G.pop && 'pop', v === 1 && 'marked'].filter(Boolean).join(' ');
-    const inner = v === 2 ? pet(icon) : v === 1 ? X_SVG : '';
-    b += `<button class="${cls}" data-i="${i}" style="background:${COLORS[regions[i]]};--i:${i}" aria-label="Row ${r + 1} column ${c + 1}, region ${regions[i] + 1}, ${v === 2 ? 'pet' : v === 1 ? 'marked' : 'empty'}">${inner}</button>`;
+    const inner = v === 2 ? (bad.has(i) ? RED_X : pet(icon)) : v === 1 ? X_SVG : '';
+    b += `<button class="${cls}" data-i="${i}" style="background:${COLORS[regions[i]]};--i:${i}" aria-label="Row ${r + 1} column ${c + 1}, region ${regions[i] + 1}, ${v === 2 ? (bad.has(i) ? 'pet, breaks a rule' : 'pet') : v === 1 ? 'marked' : 'empty'}">${inner}</button>`;
   }
   $('#bd').innerHTML = b; G.pop = -1;
   const placed = cells.filter((v) => v === 2).length, pen = G.mode === 'level' ? '−50 pts each' : '+15 s each';
@@ -433,7 +434,7 @@ const DEMO_PETS = DEMO.sol.map((c, r) => r * 4 + c);
 function mini({ pets = [], bad = [], dim = new Set() } = {}) {
   const icon = S.me?.avatar || 0;
   const cells = DEMO.reg.map((g, i) =>
-    `<div class="cell ${bad.includes(i) ? 'bad' : ''} ${dim.has(i) ? 'dim' : ''}" style="background:${COLORS[g]};--i:${i}">${pets.includes(i) ? pet(icon) : ''}</div>`).join('');
+    `<div class="cell ${bad.includes(i) ? 'bad' : ''} ${dim.has(i) ? 'dim' : ''}" style="background:${COLORS[g]};--i:${i}">${bad.includes(i) ? RED_X : pets.includes(i) ? pet(icon) : ''}</div>`).join('');
   return `<div class="board mini">${cells}</div>`;
 }
 const HOW = [
@@ -445,7 +446,7 @@ const HOW = [
       for (let i = 0; i < 16; i++) if (((i / 4) | 0) !== 1 && i % 4 !== 3) dim.add(i);
       return mini({ pets: DEMO_PETS, dim });
     } },
-  { t: 'No touching', p: 'Pets can’t sit next to each other, not even diagonally. Touching pets turn red.',
+  { t: 'No touching', p: 'Pets can’t sit next to each other, not even diagonally. A pet that breaks a rule turns into a red ✕.',
     art: () => mini({ pets: [1, 6], bad: [1, 6] }) },
   { t: 'Tap to play', p: 'Tap once for a ✕ to rule a tile out, twice for a pet, a third time to clear it.',
     art: () => {

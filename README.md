@@ -4,8 +4,8 @@ Mobile-first logic puzzle in the style of Meowdoku / Queens. Place one pet in ev
 
 - exactly **one pet per colour region**, **one per row** and **one per column**
 - pets **can't touch**, not even diagonally
-- tap once for a ✕ note (tap again to remove it), double-tap to place a pet; Undo and Clear only remove ✕ marks, never pets
-- you have **3 lives**: each pet that breaks a rule costs one, and losing all three ends that game for the day (no leaderboard entry; past days can be retried as practice)
+- tap once for a white ✕ note (tap again to remove it); **double-tap to place a pet**. A right pet stays, a wrong one becomes a red ✕. Both are final; Undo and Clear only remove white ✕ notes
+- you have **3 lives**: each wrong pet costs one, and losing all three ends that game for the day (no leaderboard entry; past days can be retried as practice)
 
 Everyone gets the same board each day.
 

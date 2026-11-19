@@ -32,6 +32,7 @@ let G = null, timer = null, tick = null;
 const hist = () => ls.get('purr:hist:' + (S.me?.uid || ''), {});
 const saveHist = (h) => ls.set('purr:hist:' + (S.me?.uid || ''), h);
 const LIVES = 3;
+const hearts = (left) => `<div class="lives" aria-label="${left} of ${LIVES} lives left">${[...Array(LIVES)].map((_, k) => `<i class="${k < left ? 'on' : ''}">♥</i>`).join('')}</div>`;
 const lostKey = (mode, date) => `purr:lost:${S.me.uid}:${mode}:${date}`;
 const gKey = (mode, date) => `purr:g2:${S.me.uid}:${mode}:${date}`;
 const fmtDate = (k, o = { weekday: 'short', day: 'numeric', month: 'short' }) => parseKey(k).toLocaleDateString(undefined, o);
@@ -279,7 +280,7 @@ function startGame(mode, date) {
     const ok = sv && sv.cells?.length === n * n;
     G = {
       mode, date, level, cfg, n, regions: p.regions, solution: p.solution,
-      cells: ok ? sv.cells : new Array(n * n).fill(0), ms: ok ? sv.ms : 0, mistakes: ok ? sv.mistakes : 0, hints: ok ? sv.hints : 0,
+      cells: ok ? sv.cells.map((v, i) => (v === 2 && p.solution[(i / n) | 0] !== i % n ? 3 : v)) : new Array(n * n).fill(0), ms: ok ? sv.ms : 0, mistakes: ok ? sv.mistakes : 0, hints: ok ? sv.hints : 0,
       undo: [], paused: false, done: false, practice: date !== S.today, last: performance.now(), pop: -1,
     };
     renderGame();
@@ -292,17 +293,8 @@ function startGame(mode, date) {
 }
 const persist = () => G && !G.done && ls.set(gKey(G.mode, G.date), { cells: G.cells, ms: G.ms, mistakes: G.mistakes, hints: G.hints });
 
-// Cells holding a pet that breaks a rule (same row / column / region, or touching).
-function conflicts() {
-  const { n, cells, regions } = G, pets = [], bad = new Set();
-  cells.forEach((v, i) => { if (v === 2) pets.push(i); });
-  for (let a = 0; a < pets.length; a++) for (let b = a + 1; b < pets.length; b++) {
-    const x = pets[a], y = pets[b], rx = (x / n) | 0, ry = (y / n) | 0, cx = x % n, cy = y % n;
-    if (rx === ry || cx === cy || regions[x] === regions[y] || (Math.abs(rx - ry) <= 1 && Math.abs(cx - cy) <= 1)) { const sx = G.solution[rx] === cx, sy = G.solution[ry] === cy; if (!sx) bad.add(x); if (!sy) bad.add(y); } // a pet on its solution tile is never the one blamed
-  }
-  return bad;
-}
-
+// Cell values: 0 empty, 1 white ✕ note, 2 correct pet (locked), 3 wrong pet = red ✕ (locked, cost a life).
+// Every pet is judged against the unique solution, so a correct pet can never be blamed for a wrong one.
 function renderGame() {
   const { cfg, mode, n } = G;
   app.innerHTML = `<main class="play">
@@ -326,14 +318,14 @@ function renderGame() {
 }
 function paint() {
   if (!G) return;
-  const { n, cells, regions } = G, bad = conflicts(), icon = S.me.avatar || 0; // the pet you picked is the pet you place
+  const { n, cells, regions } = G, icon = S.me.avatar || 0; // the pet you picked is the pet you place
   let b = '';
   for (let i = 0; i < n * n; i++) {
     const r = (i / n) | 0, c = i % n, v = cells[i];
     const cls = ['cell', c < n - 1 && regions[i] !== regions[i + 1] && 'rB', r < n - 1 && regions[i] !== regions[i + n] && 'bB', c === n - 1 && 'eR', r === n - 1 && 'eB',
-      bad.has(i) && 'bad', i === G.pop && 'pop', v === 1 && 'marked'].filter(Boolean).join(' ');
-    const inner = v === 2 ? (bad.has(i) ? RED_X : pet(icon)) : v === 1 ? X_SVG : '';
-    b += `<button class="${cls}" data-i="${i}" style="background:${COLORS[regions[i]]};--i:${i}" aria-label="Row ${r + 1} column ${c + 1}, region ${regions[i] + 1}, ${v === 2 ? (bad.has(i) ? 'pet, breaks a rule' : 'pet') : v === 1 ? 'marked' : 'empty'}">${inner}</button>`;
+      v === 3 && 'bad', i === G.pop && 'pop', v === 1 && 'marked'].filter(Boolean).join(' ');
+    const inner = v === 3 ? RED_X : v === 2 ? pet(icon) : v === 1 ? X_SVG : '';
+    b += `<button class="${cls}" data-i="${i}" style="background:${COLORS[regions[i]]};--i:${i}" aria-label="Row ${r + 1} column ${c + 1}, region ${regions[i] + 1}, ${v === 3 ? 'wrong pet, locked' : v === 2 ? 'pet, locked' : v === 1 ? 'marked' : 'empty'}">${inner}</button>`;
   }
   $('#bd').innerHTML = b; G.pop = -1;
   const placed = cells.filter((v) => v === 2).length, pen = G.mode === 'level' ? '−50 pts each' : '+15 s each';
@@ -355,46 +347,43 @@ function act(a) {
   else if (G.paused || G.done) return;
   else if (a === 'undo') undo();
   else if (a === 'hint') hint();
-  else if (a === 'clear') { if (G.cells.includes(1) && confirm('Remove all ✕ marks? Pets stay.')) { G.cells = G.cells.map((v) => (v === 1 ? 0 : v)); G.undo = G.undo.filter((u) => u.v === 2 || u.nv === 2); paint(); persist(); } else if (!G.cells.includes(1)) toast('No ✕ marks to clear'); }
+  else if (a === 'clear') { if (G.cells.includes(1) && confirm('Remove all your white ✕ notes? Pets and red ✕ stay.')) { G.cells = G.cells.map((v) => (v === 1 ? 0 : v)); G.undo = []; paint(); persist(); } else if (!G.cells.includes(1)) toast('No white ✕ notes to clear'); }
 }
-// Undo only reverts ✕ marks (adding or removing one); placed pets are never touched.
+// Undo only reverts white ✕ notes (adding or removing one); pets and red ✕ are never touched.
 function undo() {
   for (let k = G.undo.length - 1; k >= 0; k--) {
     const u = G.undo[k];
-    if (u.nv === 2 || u.v === 2 || G.cells[u.i] !== u.nv) continue;
+    if (G.cells[u.i] !== u.nv) continue;
     G.undo.splice(k, 1); G.cells[u.i] = u.v; paint(); persist(); return;
   }
-  toast('Nothing to undo. Undo only removes ✕ marks.');
+  toast('Nothing to undo. Only white ✕ notes can be undone; pets and red ✕ are final.');
 }
-// One tap toggles a ✕ note; a second tap within 350 ms turns it into a pet. Pets on their
-// correct tile are locked; a wrong pet can be tapped away (the life it cost stays spent).
+// One tap toggles a white ✕ note; a second tap on the same tile within 350 ms places a pet.
+// A pet is final: correct -> pet, wrong -> red ✕ and a life lost. Neither can be tapped away.
 const DOUBLE_MS = 350;
 function tap(i) {
   if (!G || G.paused || G.done) return;
   const now = performance.now(), v = G.cells[i], last = G.lt;
-  G.lt = { i, t: now };
-  if (v === 2) {
-    if (G.solution[(i / G.n) | 0] === i % G.n) return;      // correct pet: locked
-    if (last && last.i === i && now - last.t < DOUBLE_MS) return; // tail of the double-tap that placed it
-    G.cells[i] = 0; G.undo.push({ i, v: 2, nv: 0 }); buzz(12); paint(); persist(); return;
-  }
-  if (v === 1 && last && last.i === i && now - last.t < DOUBLE_MS) { // double tap: ✕ becomes a pet
-    const u = G.undo[G.undo.length - 1]; if (u && u.i === i && u.nv === 1) G.undo.pop();
-    G.cells[i] = 2; G.pop = i;
-    if (conflicts().has(i)) { G.mistakes++; buzz(60); } else buzz(12);
+  if (v >= 2) return; // locked
+  if (last && last.i === i && now - last.t < DOUBLE_MS) { // double tap: place a pet
+    G.lt = null;
+    const u = G.undo[G.undo.length - 1]; if (u && u.i === i && u.at === last.t) G.undo.pop(); // drop the first tap's note
+    const right = G.solution[(i / G.n) | 0] === i % G.n;
+    G.cells[i] = right ? 2 : 3; G.pop = i;
+    if (right) buzz(12); else { G.mistakes++; buzz(60); }
     paint(); persist();
     if (G.mistakes >= LIVES) return gameOver();
     return checkWin();
   }
-  const nv = v === 0 ? 1 : 0; G.undo.push({ i, v, nv }); G.cells[i] = nv;
+  G.lt = { i, t: now };
+  const nv = v === 0 ? 1 : 0; G.undo.push({ i, v, nv, at: now }); G.cells[i] = nv;
   paint(); persist();
 }
 function hint() {
   const { n, solution, cells } = G;
   const r = solution.findIndex((c, row) => cells[row * n + c] !== 2); if (r < 0) return;
   const i = r * n + solution[r];
-  for (let c = 0; c < n; c++) if (c !== solution[r] && cells[r * n + c] === 2) cells[r * n + c] = 0; // wrong pet in this row
-  G.undo.push({ i, v: cells[i], nv: 2 }); cells[i] = 2; G.pop = i; G.hints++;
+  cells[i] = 2; G.pop = i; G.hints++;
   toast(G.mode === 'level' ? 'Hint used · −75 pts' : 'Hint used · +30 s');
   paint(); persist(); checkWin();
 }
@@ -410,6 +399,7 @@ function gameOver() {
 function gameOverSheet(mode, date, fromHome, practice) {
   const s = sheet(`<div class="win">
       ${pet(S.me.avatar || 0, 'win-cat')}<h2>Out of lives</h2>
+      ${hearts(0)}
       <p class="sub">${mode === 'level' ? 'Daily level' : 'Time attack'} ${levelFor(date)} · ${fmtDate(date)}</p>
       <p class="sub">${practice ? 'That was a practice run, so you can try again.' : 'You used all 3 lives, so today’s ' + (mode === 'level' ? 'level' : 'race') + ' is over for you. A new puzzle arrives at midnight.'}</p>
       <div class="acts">${practice ? '<button class="btn" data-retry>Try again</button>' : ''}<button class="btn ghost" data-close data-home>Done</button></div></div>`);
@@ -421,7 +411,7 @@ function gameOverSheet(mode, date, fromHome, practice) {
 
 async function checkWin() {
   const placed = G.cells.filter((v) => v === 2).length;
-  if (placed !== G.n || conflicts().size) return;
+  if (placed !== G.n) return;
   G.done = true; stopTimer(); paint();
   $$('.cell').forEach((c) => c.classList.add('win'));
   localStorage.removeItem(gKey(G.mode, G.date));
@@ -443,6 +433,7 @@ async function resultSheet(mode, date, d, fromHome) {
   const s = sheet(`<div class="win">
       ${pet(S.me.avatar || 0, 'win-cat')}<h2>${fromHome ? 'Already solved' : 'Purr-fect!'}</h2>
       <div class="stars">${[1, 2, 3].map((n) => ico(I.star, `class="${n <= d.stars ? 'on' : ''}" style="animation-delay:${n * 120}ms"`)).join('')}</div>
+      ${hearts(Math.max(0, LIVES - d.mistakes))}
       <p class="sub">${mode === 'level' ? 'Daily level' : 'Time attack'} ${d.level} · ${fmtDate(date)}${ranked ? '' : ' · practice'}</p>
       <div class="facts"><div><b>${mode === 'level' ? d.score : fmtTime(d.adj)}</b><span>${mode === 'level' ? 'points' : 'final time'}</span></div><div><b>${fmtTime(d.ms)}</b><span>solve time</span></div><div><b>${d.mistakes}/${d.hints}</b><span>slips / hints</span></div></div>
       <p class="sub" id="rk">${ranked ? 'Checking your rank…' : ''}</p>
@@ -493,11 +484,11 @@ const HOW = [
       for (let i = 0; i < 16; i++) if (((i / 4) | 0) !== 1 && i % 4 !== 3) dim.add(i);
       return mini({ pets: DEMO_PETS, dim });
     } },
-  { t: 'No touching', p: 'Pets can’t sit next to each other, not even diagonally. A pet that breaks a rule turns into a red ✕.',
-    art: () => mini({ pets: [1, 6], bad: [1, 6] }) },
-  { t: 'Three lives', p: 'Every pet that breaks a rule costs a heart. Lose all three and today’s game is over, so think before you place.',
+  { t: 'No touching', p: 'Pets can’t sit next to each other, not even diagonally. A wrong pet turns into a red ✕.',
+    art: () => mini({ pets: [1], bad: [6] }) },
+  { t: 'Three lives', p: 'Every wrong pet costs a heart. Lose all three and today’s game is over, so think before you place.',
     art: () => `<div class="cycle lives big"><i class="on">♥</i><i class="on">♥</i><i>♥</i></div>` },
-  { t: 'Tap to play', p: 'Tap once for a ✕ to rule a tile out (tap again to remove it). Double-tap to place a pet. Undo and Clear only remove ✕ marks, never pets.',
+  { t: 'Tap to play', p: 'Tap once for a ✕ to rule a tile out (tap again to remove it). Double-tap to place a pet: if it is right it stays, if it is wrong it becomes a red ✕ and costs a life. Pets and red ✕ are final; Undo and Clear only remove white ✕ notes.',
     art: () => {
       const t = (inner) => `<div class="cell" style="background:${COLORS[0]}">${inner}</div>`;
       return `<div class="cycle">${t('')}<b>›</b>${t(X_SVG)}<b>2×</b>${t(pet(S.me?.avatar || 0))}</div>`;

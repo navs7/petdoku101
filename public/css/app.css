@@ -206,3 +206,7 @@ p { margin: 0; text-wrap: pretty; }
 .lives i.on { color: #D32F45; }
 .lives.big { gap: 10px; }
 .lives.big i { font-size: 3.2rem; margin: 0; }
+.win .lives { margin: 2px 0 6px; }
+.win .lives i { font-size: 1.7rem; margin: 0 3px; }
+.play .stat-row { margin-top: auto; }
+.play .tools { margin-bottom: auto; }

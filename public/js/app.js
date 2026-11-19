@@ -473,6 +473,8 @@ const HOW = [
     } },
   { t: 'No touching', p: 'Pets can’t sit next to each other, not even diagonally. A pet that breaks a rule turns into a red ✕.',
     art: () => mini({ pets: [1, 6], bad: [1, 6] }) },
+  { t: 'Three lives', p: 'Every pet that breaks a rule costs a heart. Lose all three and today’s game is over, so think before you place.',
+    art: () => `<div class="cycle lives big"><i class="on">♥</i><i class="on">♥</i><i>♥</i></div>` },
   { t: 'Tap to play', p: 'Tap once for a ✕ to rule a tile out, twice for a pet, a third time to clear it.',
     art: () => {
       const t = (inner) => `<div class="cell" style="background:${COLORS[0]}">${inner}</div>`;

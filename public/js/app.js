@@ -298,7 +298,7 @@ function conflicts() {
   cells.forEach((v, i) => { if (v === 2) pets.push(i); });
   for (let a = 0; a < pets.length; a++) for (let b = a + 1; b < pets.length; b++) {
     const x = pets[a], y = pets[b], rx = (x / n) | 0, ry = (y / n) | 0, cx = x % n, cy = y % n;
-    if (rx === ry || cx === cy || regions[x] === regions[y] || (Math.abs(rx - ry) <= 1 && Math.abs(cx - cy) <= 1)) { bad.add(x); bad.add(y); }
+    if (rx === ry || cx === cy || regions[x] === regions[y] || (Math.abs(rx - ry) <= 1 && Math.abs(cx - cy) <= 1)) { const sx = G.solution[rx] === cx, sy = G.solution[ry] === cy; if (!sx) bad.add(x); if (!sy) bad.add(y); } // a pet on its solution tile is never the one blamed
   }
   return bad;
 }
@@ -353,15 +353,23 @@ function act(a) {
   else if (a === 'resume') setPaused(false);
   else if (a === 'help') { setPaused(true); howTo(); }
   else if (G.paused || G.done) return;
-  else if (a === 'undo') { const u = G.undo.pop(); if (u) { G.cells[u.i] = u.v; paint(); persist(); } }
+  else if (a === 'undo') undo();
   else if (a === 'hint') hint();
   else if (a === 'clear') { if (G.cells.some(Boolean) && confirm('Clear the whole board? Your timer keeps running.')) { G.cells.fill(0); G.undo = []; paint(); persist(); } }
+}
+// Undo never takes back a pet (right or wrong): it reverts the latest earlier ✕ / clear step instead.
+function undo() {
+  for (let k = G.undo.length - 1; k >= 0; k--) {
+    const u = G.undo[k];
+    if (u.nv === 2 || u.v === 2 || G.cells[u.i] !== u.nv) continue;
+    G.undo.splice(k, 1); G.cells[u.i] = u.v; paint(); persist(); return;
+  }
+  toast('Pets can’t be undone. Tap a pet to remove it.');
 }
 // empty -> ✕ note -> pet -> empty
 function tap(i) {
   if (!G || G.paused || G.done) return;
-  G.undo.push({ i, v: G.cells[i] });
-  const v = (G.cells[i] + 1) % 3; G.cells[i] = v;
+  const v = (G.cells[i] + 1) % 3; G.undo.push({ i, v: G.cells[i], nv: v }); G.cells[i] = v;
   if (v === 2) { G.pop = i; if (conflicts().has(i)) { G.mistakes++; buzz(60); } else buzz(12); }
   paint(); persist();
   if (G.mistakes >= LIVES) return gameOver();
@@ -372,7 +380,7 @@ function hint() {
   const r = solution.findIndex((c, row) => cells[row * n + c] !== 2); if (r < 0) return;
   const i = r * n + solution[r];
   for (let c = 0; c < n; c++) if (c !== solution[r] && cells[r * n + c] === 2) cells[r * n + c] = 0; // wrong pet in this row
-  G.undo.push({ i, v: cells[i] }); cells[i] = 2; G.pop = i; G.hints++;
+  G.undo.push({ i, v: cells[i], nv: 2 }); cells[i] = 2; G.pop = i; G.hints++;
   toast(G.mode === 'level' ? 'Hint used · −75 pts' : 'Hint used · +30 s');
   paint(); persist(); checkWin();
 }

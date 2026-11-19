@@ -355,25 +355,39 @@ function act(a) {
   else if (G.paused || G.done) return;
   else if (a === 'undo') undo();
   else if (a === 'hint') hint();
-  else if (a === 'clear') { if (G.cells.some(Boolean) && confirm('Clear the whole board? Your timer keeps running.')) { G.cells.fill(0); G.undo = []; paint(); persist(); } }
+  else if (a === 'clear') { if (G.cells.includes(1) && confirm('Remove all ✕ marks? Pets stay.')) { G.cells = G.cells.map((v) => (v === 1 ? 0 : v)); G.undo = G.undo.filter((u) => u.v === 2 || u.nv === 2); paint(); persist(); } else if (!G.cells.includes(1)) toast('No ✕ marks to clear'); }
 }
-// Undo never takes back a pet (right or wrong): it reverts the latest earlier ✕ / clear step instead.
+// Undo only reverts ✕ marks (adding or removing one); placed pets are never touched.
 function undo() {
   for (let k = G.undo.length - 1; k >= 0; k--) {
     const u = G.undo[k];
     if (u.nv === 2 || u.v === 2 || G.cells[u.i] !== u.nv) continue;
     G.undo.splice(k, 1); G.cells[u.i] = u.v; paint(); persist(); return;
   }
-  toast('Pets can’t be undone. Tap a pet to remove it.');
+  toast('Nothing to undo. Undo only removes ✕ marks.');
 }
-// empty -> ✕ note -> pet -> empty
+// One tap toggles a ✕ note; a second tap within 350 ms turns it into a pet. Pets on their
+// correct tile are locked; a wrong pet can be tapped away (the life it cost stays spent).
+const DOUBLE_MS = 350;
 function tap(i) {
   if (!G || G.paused || G.done) return;
-  const v = (G.cells[i] + 1) % 3; G.undo.push({ i, v: G.cells[i], nv: v }); G.cells[i] = v;
-  if (v === 2) { G.pop = i; if (conflicts().has(i)) { G.mistakes++; buzz(60); } else buzz(12); }
+  const now = performance.now(), v = G.cells[i], last = G.lt;
+  G.lt = { i, t: now };
+  if (v === 2) {
+    if (G.solution[(i / G.n) | 0] === i % G.n) return;      // correct pet: locked
+    if (last && last.i === i && now - last.t < DOUBLE_MS) return; // tail of the double-tap that placed it
+    G.cells[i] = 0; G.undo.push({ i, v: 2, nv: 0 }); buzz(12); paint(); persist(); return;
+  }
+  if (v === 1 && last && last.i === i && now - last.t < DOUBLE_MS) { // double tap: ✕ becomes a pet
+    const u = G.undo[G.undo.length - 1]; if (u && u.i === i && u.nv === 1) G.undo.pop();
+    G.cells[i] = 2; G.pop = i;
+    if (conflicts().has(i)) { G.mistakes++; buzz(60); } else buzz(12);
+    paint(); persist();
+    if (G.mistakes >= LIVES) return gameOver();
+    return checkWin();
+  }
+  const nv = v === 0 ? 1 : 0; G.undo.push({ i, v, nv }); G.cells[i] = nv;
   paint(); persist();
-  if (G.mistakes >= LIVES) return gameOver();
-  checkWin();
 }
 function hint() {
   const { n, solution, cells } = G;
@@ -483,10 +497,10 @@ const HOW = [
     art: () => mini({ pets: [1, 6], bad: [1, 6] }) },
   { t: 'Three lives', p: 'Every pet that breaks a rule costs a heart. Lose all three and today’s game is over, so think before you place.',
     art: () => `<div class="cycle lives big"><i class="on">♥</i><i class="on">♥</i><i>♥</i></div>` },
-  { t: 'Tap to play', p: 'Tap once for a ✕ to rule a tile out, twice for a pet, a third time to clear it.',
+  { t: 'Tap to play', p: 'Tap once for a ✕ to rule a tile out (tap again to remove it). Double-tap to place a pet. Undo and Clear only remove ✕ marks, never pets.',
     art: () => {
       const t = (inner) => `<div class="cell" style="background:${COLORS[0]}">${inner}</div>`;
-      return `<div class="cycle">${t('')}<b>›</b>${t(X_SVG)}<b>›</b>${t(pet(S.me?.avatar || 0))}</div>`;
+      return `<div class="cycle">${t('')}<b>›</b>${t(X_SVG)}<b>2×</b>${t(pet(S.me?.avatar || 0))}</div>`;
     } },
 ];
 function howTo() {

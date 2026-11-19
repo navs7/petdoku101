@@ -5,6 +5,8 @@ Mobile-first logic puzzle in the style of Meowdoku / Queens. Place one pet in ev
 - exactly **one pet per colour region**, **one per row** and **one per column**
 - pets **can't touch**, not even diagonally
 - tap once for a white ✕ note (tap again to remove it); **double-tap to place a pet**. A right pet stays, a wrong one becomes a red ✕. Both are final; Undo and Clear only remove white ✕ notes
+- **Hint** places a pet and shows a popup explaining the logic (a unit with one open tile, or the dead end each alternative leads to). `npm test` checks every explanation is sound
+- the back gesture/button steps back inside the app (game, sheet, tab) instead of leaving it
 - you have **3 lives**: each wrong pet costs one, and losing all three ends that game for the day (no leaderboard entry; past days can be retried as practice)
 
 Everyone gets the same board each day.
@@ -14,7 +16,7 @@ Everyone gets the same board each day.
   - **Time Attack**: 6×6 to 10×10 race. Ranked by time (+15 s per slip, +30 s per hint).
 - **Profiles** with unique usernames (claimed atomically in Firestore), an animal avatar, streaks and all-time points. Nine animals (cat, dog, rabbit, fox, panda, bear, pig, mouse, frog) are selectable as avatar and as the board piece.
 - **Leaderboards** per day/mode plus all-time. **Share** button produces a text summary.
-- **Calendar** of the whole year; past days are playable as unranked practice.
+- **Calendar** runs from 1 November 2026; past days are playable as unranked practice.
 - Boards are generated in the browser from a seeded PRNG (`public/js/puzzle.js`) and every one has a unique solution. `npm test` verifies all 730.
 
 ## Run locally

@@ -1,5 +1,6 @@
 import { getPuzzle, configFor, levelFor, dateKey, parseKey, addDays, scoreFor, fmtTime } from './puzzle.js';
 import { ANIMALS, pet, mountSprite } from './pets.js';
+import { explain, unitCells, blockedCells } from './hints.js';
 import { createBackend, USERNAME_RE, ls } from './backend.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -29,6 +30,7 @@ const S = {
   rank: { mode: 'level', date: dateKey(), tab: 'level' },
 };
 let G = null, timer = null, tick = null;
+const inGame = () => !!G || nav.layers.some((l) => l.kind === 'game'); // true while a puzzle is loading too
 const hist = () => ls.get('purr:hist:' + (S.me?.uid || ''), {});
 const saveHist = (h) => ls.set('purr:hist:' + (S.me?.uid || ''), h);
 const LIVES = 3;
@@ -41,11 +43,35 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
 const buzz = (p) => { try { navigator.vibrate?.(p); } catch { /* unsupported */ } };
 
-function sheet(html) {
+// Back gesture / back button: every screen layer on top of the base page (a game, a non-home tab, a sheet,
+// the how-to) owns one slot. While any layer is open there is exactly one extra history entry, so "back"
+// closes the top layer instead of leaving the app; with no layer open, back behaves normally.
+const nav = { layers: [], armed: false, pending: false };
+function syncHistory() {
+  if (nav.pending) return;
+  const want = nav.layers.length > 0;
+  if (want && !nav.armed) { history.pushState({ pd: 1 }, ''); nav.armed = true; }
+  else if (!want && nav.armed) { nav.pending = true; nav.armed = false; history.back(); }
+}
+function addLayer(close, kind = 'sheet') { const l = { close, kind }; nav.layers.push(l); syncHistory(); return l; }
+function removeLayer(l) { const k = nav.layers.indexOf(l); if (k >= 0) nav.layers.splice(k, 1); syncHistory(); }
+function dropKind(kind) { nav.layers = nav.layers.filter((l) => l.kind !== kind); syncHistory(); }
+window.addEventListener('popstate', () => {
+  if (nav.pending) { nav.pending = false; syncHistory(); return; }
+  nav.armed = false;                 // the user stepped back onto the base entry
+  const l = nav.layers.pop();
+  l?.close();
+  syncHistory();                     // re-arm if layers remain
+});
+
+function sheet(html, onClose) {
   const el = document.createElement('div');
   el.className = 'scrim';
   el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('[data-close]')) el.remove(); });
+  const layer = addLayer(() => el.remove());
+  const drop = el.remove.bind(el); let gone = false;
+  el.remove = () => { if (gone) return; gone = true; drop(); removeLayer(layer); onClose?.(); };
   document.body.append(el);
   return el;
 }
@@ -72,14 +98,14 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     S.today = dateKey();
     if (document.hidden && G && !G.done) setPaused(true);
-    else if (!document.hidden && !G && S.me) go(S.tab);
+    else if (!document.hidden && !inGame() && S.me) go(S.tab);
   });
   setInterval(() => { const c = $('#cd'); if (c) c.textContent = untilMidnight(); }, 1000);
 }
 function untilMidnight() {
   const n = new Date(), m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
   const s = Math.floor((m - n) / 1000), p = (x) => String(x).padStart(2, '0');
-  if (dateKey() !== S.today) { S.today = dateKey(); if (!G && S.me) go(S.tab); }
+  if (dateKey() !== S.today) { S.today = dateKey(); if (!inGame() && S.me) go(S.tab); }
   return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`;
 }
 
@@ -125,6 +151,8 @@ function onboarding() {
 // ---------------- shell + tabs ----------------
 function go(tab) {
   stopTimer(); G = null; S.tab = tab; S.today = dateKey();
+  dropKind('game'); dropKind('hint');
+  if (tab === 'home') dropKind('tab'); else if (!nav.layers.some((l) => l.kind === 'tab')) addLayer(() => go('home'), 'tab');
   const view = { home, cal, ranks, me }[tab]();
   app.innerHTML = `<main class="screen">${view.html}</main>
     <nav class="nav" aria-label="Main">${[['home', 'Play', I.home], ['cal', 'Calendar', I.cal], ['ranks', 'Ranks', I.trophy], ['me', 'Me', I.user]]
@@ -178,10 +206,11 @@ function open(mode, date) {
 }
 
 // ---------------- calendar ----------------
+const CAL_START = [2026, 10]; // November 2026 (month is 0-based)
 function cal() {
-  const y = parseKey(S.today).getFullYear(), H = hist();
+  const H = hist(), ty = parseKey(S.today).getFullYear();
   let out = '';
-  for (let m = 0; m < 12; m++) {
+  for (let y = CAL_START[0]; y <= Math.max(CAL_START[0], ty); y++) for (let m = y === CAL_START[0] ? CAL_START[1] : 0; m < 12; m++) {
     const n = new Date(y, m + 1, 0).getDate(), off = (new Date(y, m, 1).getDay() + 6) % 7;
     let cells = '<span></span>'.repeat(off);
     for (let d = 1; d <= n; d++) {
@@ -189,10 +218,10 @@ function cal() {
       cells += `<button class="day ${k === S.today ? 'today' : ''} ${k > S.today ? 'future' : ''} ${r.level && r.time ? 'full' : ''}" data-d="${k}" aria-label="${fmtDate(k)}">${d}<i><em class="l ${r.level ? 'on' : ''}"></em><em class="t ${r.time ? 'on' : ''}"></em></i></button>`;
     }
     const done = Object.keys(H).filter((k) => k.startsWith(`${y}-${String(m + 1).padStart(2, '0')}`)).length;
-    out += `<section class="month"><h3>${new Date(y, m, 1).toLocaleDateString(undefined, { month: 'long' })}<span>${done} of ${n} days played</span></h3><div class="mgrid">${cells}</div></section>`;
+    out += `<section class="month"><h3>${new Date(y, m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}<span>${done} of ${n} days played</span></h3><div class="mgrid">${cells}</div></section>`;
   }
   return {
-    html: `<h1 class="title">${y} calendar</h1><p class="sub">365 levels, one a day. Tap a past day to practise it.</p>
+    html: `<h1 class="title">Calendar</h1><p class="sub">A new puzzle every day since 1 November 2026. Tap a past day to practise it.</p>
       <div class="legend"><span><em style="background:var(--accent)"></em>Level</span><span><em style="background:var(--sage)"></em>Time</span></div>${out}`,
     bind(el) {
       el.addEventListener('click', (e) => {
@@ -270,9 +299,25 @@ function me() {
 // ---------------- game ----------------
 const X_SVG = '<svg class="x" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="#fff" stroke-width="3.6" stroke-linecap="round" fill="none"/></svg>';
 const RED_X = '<svg class="x bad-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="#fff" stroke-width="6.4" stroke-linecap="round" fill="none"/><path d="M5 5l14 14M19 5L5 19" stroke="#D32F45" stroke-width="3.6" stroke-linecap="round" fill="none"/></svg>';
+const RULED_X = '<svg class="x ruled" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="1.5" width="21" height="21" rx="4" fill="#4CAF50" stroke="#fff" stroke-width="1.6"/><path d="M7 7l10 10M17 7L7 17" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
+const NAMES = ['yellow', 'light pink', 'magenta', 'purple', 'teal', 'blue', 'green', 'orange', 'coral', 'taupe'];
+const PRAISE = ['Well done!', 'Well spotted!', 'Nice one!', 'Great find!', 'Purr-fect!', 'Spot on!', 'Clever!', 'Pawsome!'];
+let lastPraise = -1;
+function praise(i) {
+  const wrap = $('.board-wrap'), cell = $('.cell[data-i="' + i + '"]'); if (!wrap || !cell) return;
+  let k; do { k = Math.floor(Math.random() * PRAISE.length); } while (k === lastPraise); lastPraise = k;
+  const w = wrap.getBoundingClientRect(), c = cell.getBoundingClientRect();
+  const el = document.createElement('div'); el.className = 'praise'; el.setAttribute('aria-hidden', 'true'); el.textContent = PRAISE[k];
+  wrap.append(el);
+  const half = el.offsetWidth / 2 + 6;
+  el.style.left = Math.min(Math.max(c.left - w.left + c.width / 2, half), w.width - half) + 'px';
+  el.style.top = c.top - w.top + c.height / 2 + 'px';
+  setTimeout(() => el.remove(), 1100);
+}
 const COLORS = ['#E3B93F', '#E6A8C7', '#C45C8E', '#8E7BD0', '#4FB3A6', '#5B9BE0', '#7DBE5A', '#EE8A4C', '#E0645C', '#A79384'];
 function stopTimer() { clearInterval(timer); timer = null; }
 function startGame(mode, date) {
+  dropKind('game'); addLayer(() => { persist(); go(S.tab); }, 'game');
   app.innerHTML = `<div class="loader">${pet(S.me.avatar || 0)}</div>`;
   setTimeout(async () => {
     const level = levelFor(date), cfg = configFor(mode, level), p = await getPuzzle(mode, level, cfg), n = p.size;
@@ -302,7 +347,9 @@ function renderGame() {
       <h2>${mode === 'level' ? 'Daily level ' + G.level : 'Time attack ' + G.level}<small>${cfg.name} · ${n}×${n}${G.practice ? ' · practice' : ''}</small></h2>
       <div class="timer"><span id="tm">${fmtTime(G.ms)}</span><button class="iconbtn" data-act="pause" aria-label="Pause">${ico(I.pause)}</button></div></div>
     <div class="stat-row" id="st"></div>
+    <div class="hintmsg" id="hm" hidden></div>
     <div class="board-wrap" style="position:relative"><div class="board" id="bd" style="--n:${n}"></div></div>
+    <div class="hintbar" id="hb" hidden></div>
     <div class="tools">
       <button class="tool" data-act="undo">${ico(I.undo)}Undo</button>
       <button class="tool" data-act="hint">${ico(I.bulb)}Hint<b id="hc" hidden></b></button>
@@ -319,12 +366,15 @@ function renderGame() {
 function paint() {
   if (!G) return;
   const { n, cells, regions } = G, icon = S.me.avatar || 0; // the pet you picked is the pet you place
+  const hv = G.hv, st = hv && hv.steps[hv.k], ghost = new Set(st?.ghost || []), ruled = new Set(st?.ruled || []), out = new Set(st?.outline || []), tgt = st ? st.target : -1;
   let b = '';
   for (let i = 0; i < n * n; i++) {
     const r = (i / n) | 0, c = i % n, v = cells[i];
     const cls = ['cell', c < n - 1 && regions[i] !== regions[i + 1] && 'rB', r < n - 1 && regions[i] !== regions[i + n] && 'bB', c === n - 1 && 'eR', r === n - 1 && 'eB',
-      v === 3 && 'bad', i === G.pop && 'pop', v === 1 && 'marked'].filter(Boolean).join(' ');
-    const inner = v === 3 ? RED_X : v === 2 ? pet(icon) : v === 1 ? X_SVG : '';
+      v === 3 && 'bad', i === G.pop && 'pop', v === 1 && 'marked',
+      hv && !(ghost.has(i) || ruled.has(i) || out.has(i) || i === tgt || v >= 2) && 'hv-dim', hv && out.has(i) && 'hv-out',
+      ghost.has(i) && (i === st.ghost[0] ? 'hv-try' : 'hv-forced'), i === tgt && 'hv-target'].filter(Boolean).join(' ');
+    const inner = hv && (ghost.has(i) || i === tgt) ? pet(icon) : hv && ruled.has(i) ? RULED_X : v === 3 ? RED_X : v === 2 ? pet(icon) : v === 1 ? X_SVG : '';
     b += `<button class="${cls}" data-i="${i}" style="background:${COLORS[regions[i]]};--i:${i}" aria-label="Row ${r + 1} column ${c + 1}, region ${regions[i] + 1}, ${v === 3 ? 'wrong pet, locked' : v === 2 ? 'pet, locked' : v === 1 ? 'marked' : 'empty'}">${inner}</button>`;
   }
   $('#bd').innerHTML = b; G.pop = -1;
@@ -333,14 +383,15 @@ function paint() {
   const hc = $('#hc'); hc.hidden = !G.hints; hc.textContent = G.hints;
 }
 function setPaused(p) {
-  if (!G || G.done) return; G.paused = p; G.last = performance.now();
+  if (!G || G.done || G.hv) return; G.paused = p; G.last = performance.now();
   const wrap = $('.board-wrap'); if (!wrap) return;
   $('#bd').classList.toggle('paused', p); $('.pause')?.remove();
   if (p) { wrap.insertAdjacentHTML('beforeend', `<div class="pause"><button class="btn" data-act="resume">${ico(I.play, 'width="18" height="18" fill="currentColor"')}Resume</button></div>`); persist(); }
 }
 function act(a) {
   if (!G) return;
-  if (a === 'back') { persist(); go('home'); }
+  if (G.hv && a !== 'back') { if (a === 'hv-next') hintStep(1); else if (a === 'hv-prev') hintStep(-1); else if (a === 'hv-apply') endHint(true); else if (a === 'hv-close') endHint(false); return; }
+  if (a === 'back') { persist(); go(S.tab); }
   else if (a === 'pause') setPaused(!G.paused);
   else if (a === 'resume') setPaused(false);
   else if (a === 'help') { setPaused(true); howTo(); }
@@ -362,7 +413,7 @@ function undo() {
 // A pet is final: correct -> pet, wrong -> red ✕ and a life lost. Neither can be tapped away.
 const DOUBLE_MS = 350;
 function tap(i) {
-  if (!G || G.paused || G.done) return;
+  if (!G || G.paused || G.done || G.hv) return;
   const now = performance.now(), v = G.cells[i], last = G.lt;
   if (v >= 2) return; // locked
   if (last && last.i === i && now - last.t < DOUBLE_MS) { // double tap: place a pet
@@ -372,6 +423,7 @@ function tap(i) {
     G.cells[i] = right ? 2 : 3; G.pop = i;
     if (right) buzz(12); else { G.mistakes++; buzz(60); }
     paint(); persist();
+    if (right && G.cells.filter((v) => v === 2).length < G.n) praise(i);
     if (G.mistakes >= LIVES) return gameOver();
     return checkWin();
   }
@@ -379,13 +431,67 @@ function tap(i) {
   const nv = v === 0 ? 1 : 0; G.undo.push({ i, v, nv, at: now }); G.cells[i] = nv;
   paint(); persist();
 }
+// ---- hint: a step-by-step visual walkthrough on the board; the pet is only placed (and charged) on Apply ----
+const unitLabel = (type, idx) => (type === 'region' ? '<span class="sw" style="background:' + COLORS[idx] + '"></span><b>' + NAMES[idx] + '</b> region' : type === 'row' ? '<b>row ' + (idx + 1) + '</b>' : '<b>column ' + (idx + 1) + '</b>');
+
+function buildSteps(ex) {
+  const { n, regions, cells } = G, pets = [], dead = new Set();
+  cells.forEach((v, i) => { if (v === 2) pets.push(i); else if (v === 3) dead.add(i); });
+  const base = blockedCells(n, regions, pets), steps = [];
+  const crossed = (tiles, skip) => tiles.filter((i) => !skip.has(i) && !pets.includes(i) && !dead.has(i));
+  if (ex.kind !== 'deadend') {
+    const tiles = unitCells(n, regions, ex.type, ex.idx);
+    steps.push({
+      outline: tiles, ruled: crossed(tiles.filter((i) => i !== ex.i), new Set()), target: ex.i, ghost: [],
+      msg: tiles.length === 1
+        ? 'The ' + unitLabel(ex.type, ex.idx) + ' is a single square, so its pet has to go here.'
+        : 'The ' + unitLabel(ex.type, ex.idx) + ' still needs a pet. Every other square in it is ruled out by pets you have already placed, so the pet goes here.',
+    });
+    return steps;
+  }
+  for (const o of ex.others) {
+    const chain = o.why ? o.why.chain : [o.i], all = blockedCells(n, regions, [...pets, ...chain]);
+    const outline = o.why ? unitCells(n, regions, o.why.type, o.why.idx) : [];
+    const skip = new Set(chain);
+    const ruled = crossed([...all].filter((i) => !base.has(i) || outline.includes(i)), skip);
+    steps.push({
+      outline, ruled, target: -1, ghost: chain,
+      msg: o.why
+        ? 'Try a pet here: it rules out the green squares' + (o.why.forced ? ' and the pets it forces rule out more' : '') + '. Now the ' + unitLabel(o.why.type, o.why.idx) + ' has no square left for its pet, so it can’t go here.'
+        : 'Try a pet here: it rules out the green squares and leads to a dead end a few moves later, so it can’t go here.',
+    });
+  }
+  steps.push({
+    outline: unitCells(n, regions, ex.type, ex.idx), ruled: ex.others.map((x) => x.i), target: ex.i, ghost: [],
+    msg: 'Every other square in the ' + unitLabel(ex.type, ex.idx) + ' fails, so its pet belongs here.',
+  });
+  return steps;
+}
+function drawHint() {
+  const hv = G.hv, st = hv.steps[hv.k], last = hv.k === hv.steps.length - 1;
+  const hm = $('#hm'), hb = $('#hb');
+  hm.innerHTML = '<button class="hclose" data-act="hv-close" aria-label="Close hint">✕</button>'
+    + (hv.steps.length > 1 ? '<small>Step ' + (hv.k + 1) + ' of ' + hv.steps.length + '</small>' : '<small>Hint</small>') + '<p>' + st.msg + '</p>';
+  hb.innerHTML = (hv.k > 0 ? '<button class="btn ghost" data-act="hv-prev">Back</button>' : '')
+    + (last ? '<button class="btn" data-act="hv-apply">Apply</button><small>' + (G.mode === 'level' ? '−75 pts' : '+30 s') + ' for the hint</small>' : '<button class="btn" data-act="hv-next">Next</button>');
+  hb.classList.toggle('two', hv.k > 0);
+  $('#st').hidden = true; $('.tools').hidden = true; hm.hidden = false; hb.hidden = false;
+  paint();
+}
+function hintStep(d) { const hv = G.hv; hv.k = Math.max(0, Math.min(hv.steps.length - 1, hv.k + d)); drawHint(); }
 function hint() {
-  const { n, solution, cells } = G;
-  const r = solution.findIndex((c, row) => cells[row * n + c] !== 2); if (r < 0) return;
-  const i = r * n + solution[r];
-  cells[i] = 2; G.pop = i; G.hints++;
-  toast(G.mode === 'level' ? 'Hint used · −75 pts' : 'Hint used · +30 s');
-  paint(); persist(); checkWin();
+  const ex = explain({ n: G.n, regions: G.regions, solution: G.solution, cells: G.cells }); if (!ex) return;
+  G.hv = { ex, steps: buildSteps(ex), k: 0 };
+  G.hv.layer = addLayer(() => endHint(false), 'hint');
+  G.paused = true; G.last = performance.now();
+  drawHint();
+}
+function endHint(apply) {
+  const hv = G?.hv; if (!hv) return;
+  G.hv = null; removeLayer(hv.layer);
+  G.paused = false; G.last = performance.now();
+  $('#hm').hidden = true; $('#hb').hidden = true; $('#st').hidden = false; $('.tools').hidden = false;
+  if (apply) { G.cells[hv.ex.i] = 2; G.pop = hv.ex.i; G.hints++; paint(); persist(); checkWin(); } else paint();
 }
 
 function gameOver() {
@@ -500,6 +606,7 @@ function howTo() {
   const el = document.createElement('div');
   el.className = 'howto'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'How to play');
   document.body.append(el);
+  const layer = addLayer(() => close());
   const draw = () => {
     const s = HOW[i], last = i === HOW.length - 1;
     el.innerHTML = `<button class="skip" data-skip>${last ? '' : 'Skip'}</button>
@@ -507,7 +614,7 @@ function howTo() {
       <div class="dots">${HOW.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>
       <button class="btn block" data-next>${last ? 'Let’s play' : 'Next'}</button>`;
   };
-  const close = () => { ls.set('purr:seenHowTo', 1); el.remove(); };
+  const close = () => { ls.set('purr:seenHowTo', 1); el.remove(); removeLayer(layer); };
   el.addEventListener('click', (e) => {
     if (e.target.closest('[data-skip]')) close();
     if (e.target.closest('[data-next]')) { if (i === HOW.length - 1) close(); else { i++; draw(); } }

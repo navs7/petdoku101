@@ -31,6 +31,8 @@ const S = {
 let G = null, timer = null, tick = null;
 const hist = () => ls.get('purr:hist:' + (S.me?.uid || ''), {});
 const saveHist = (h) => ls.set('purr:hist:' + (S.me?.uid || ''), h);
+const LIVES = 3;
+const lostKey = (mode, date) => `purr:lost:${S.me.uid}:${mode}:${date}`;
 const gKey = (mode, date) => `purr:g2:${S.me.uid}:${mode}:${date}`;
 const fmtDate = (k, o = { weekday: 'short', day: 'numeric', month: 'short' }) => parseKey(k).toLocaleDateString(undefined, o);
 
@@ -137,11 +139,11 @@ function home() {
   const t = S.today, lv = levelFor(t), h = hist()[t] || {};
   const lc = configFor('level', lv), tc = configFor('time', lv);
   const card = (mode, c, tag, title, blurb) => {
-    const d = h[mode], saved = !d && ls.get(gKey(mode, t));
+    const d = h[mode], saved = !d && ls.get(gKey(mode, t)); const lost = !d && ls.get(lostKey(mode, t));
     return `<button class="mode ${mode} ${d ? 'done' : ''}" data-play="${mode}">
       <span class="tag">${tag}</span><h2>${title}</h2><p>${blurb}</p>
       <div class="pile">${pet(mode === 'level' ? 5 : 0)}${pet(mode === 'level' ? 0 : 3)}${pet(mode === 'level' ? 7 : 8)}</div>
-      <span class="go">${d ? 'Solved' : saved ? 'Resume' : 'Play'} ${ico(d ? I.star : I.play, 'width="14" height="14" fill="currentColor"')}</span>
+      <span class="go">${d ? 'Solved' : lost ? 'Out of lives' : saved ? 'Resume' : 'Play'} ${ico(d ? I.star : I.play, 'width="14" height="14" fill="currentColor"')}</span>
       ${d ? `<span class="score">${mode === 'level' ? d.score + ' pts' : fmtTime(d.adj)}</span>` : ''}</button>`;
   };
   const days = [...Array(7)].map((_, i) => addDays(t, i - 6));
@@ -170,6 +172,7 @@ function home() {
 function open(mode, date) {
   const d = hist()[date]?.[mode];
   if (d) return resultSheet(mode, date, d, true);
+  if (ls.get(lostKey(mode, date))) return gameOverSheet(mode, date, true);
   startGame(mode, date);
 }
 
@@ -334,7 +337,7 @@ function paint() {
   }
   $('#bd').innerHTML = b; G.pop = -1;
   const placed = cells.filter((v) => v === 2).length, pen = G.mode === 'level' ? '−50 pts each' : '+15 s each';
-  $('#st').innerHTML = `<span>Pets <b>${placed}/${n}</b></span><span>Slips <b>${G.mistakes}</b> <small style="font-weight:500">(${pen})</small></span><span>Hints <b>${G.hints}</b></span>`;
+  $('#st').innerHTML = `<span>Pets <b>${placed}/${n}</b></span><span class="lives" aria-label="${LIVES - G.mistakes} of ${LIVES} lives left">${[0, 1, 2].map((k) => `<i class="${k < LIVES - G.mistakes ? 'on' : ''}">♥</i>`).join('')} <small style="font-weight:500">${pen}</small></span><span>Hints <b>${G.hints}</b></span>`;
   const hc = $('#hc'); hc.hidden = !G.hints; hc.textContent = G.hints;
 }
 function setPaused(p) {
@@ -360,7 +363,9 @@ function tap(i) {
   G.undo.push({ i, v: G.cells[i] });
   const v = (G.cells[i] + 1) % 3; G.cells[i] = v;
   if (v === 2) { G.pop = i; if (conflicts().has(i)) { G.mistakes++; buzz(60); } else buzz(12); }
-  paint(); persist(); checkWin();
+  paint(); persist();
+  if (G.mistakes >= LIVES) return gameOver();
+  checkWin();
 }
 function hint() {
   const { n, solution, cells } = G;
@@ -370,6 +375,26 @@ function hint() {
   G.undo.push({ i, v: cells[i] }); cells[i] = 2; G.pop = i; G.hints++;
   toast(G.mode === 'level' ? 'Hint used · −75 pts' : 'Hint used · +30 s');
   paint(); persist(); checkWin();
+}
+
+function gameOver() {
+  G.done = true; stopTimer(); paint();
+  const { mode, date, practice } = G;
+  localStorage.removeItem(gKey(mode, date));
+  if (!practice) ls.set(lostKey(mode, date), { ms: Math.round(G.ms), level: G.level });
+  buzz([80, 40, 80]);
+  setTimeout(() => gameOverSheet(mode, date, false, practice), 700);
+}
+function gameOverSheet(mode, date, fromHome, practice) {
+  const s = sheet(`<div class="win">
+      ${pet(S.me.avatar || 0, 'win-cat')}<h2>Out of lives</h2>
+      <p class="sub">${mode === 'level' ? 'Daily level' : 'Time attack'} ${levelFor(date)} · ${fmtDate(date)}</p>
+      <p class="sub">${practice ? 'That was a practice run, so you can try again.' : 'You used all 3 lives, so today’s ' + (mode === 'level' ? 'level' : 'race') + ' is over for you. A new puzzle arrives at midnight.'}</p>
+      <div class="acts">${practice ? '<button class="btn" data-retry>Try again</button>' : ''}<button class="btn ghost" data-close data-home>Done</button></div></div>`);
+  s.addEventListener('click', (e) => {
+    if (e.target.closest('[data-retry]')) { s.remove(); startGame(mode, date); }
+    if (e.target.closest('[data-home]')) go('home');
+  });
 }
 
 async function checkWin() {

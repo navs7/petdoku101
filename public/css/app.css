@@ -201,3 +201,6 @@ p { margin: 0; text-wrap: pretty; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 .loader { display: grid; place-items: center; min-height: 100dvh; } .loader .cat { width: 90px; animation: bob 1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+.lives i { font-style: normal; color: var(--line, #d8d2cc); font-size: 1.1rem; margin-right: 2px; transition: color .2s; }
+.lives i.on { color: #D32F45; }

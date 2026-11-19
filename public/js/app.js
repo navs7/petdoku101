@@ -450,15 +450,15 @@ function buildSteps(ex) {
     return steps;
   }
   for (const o of ex.others) {
-    const chain = o.why ? o.why.chain : [o.i], all = blockedCells(n, regions, [...pets, ...chain]);
-    const outline = o.why ? unitCells(n, regions, o.why.type, o.why.idx) : [];
-    const skip = new Set(chain);
-    const ruled = crossed([...all].filter((i) => !base.has(i) || outline.includes(i)), skip);
+    // Only the tile being tried is drawn. Follow-up pets are never shown: they could be real, undiscovered pets.
+    const direct = o.why && o.why.forced === 0, all = blockedCells(n, regions, [...pets, o.i]);
+    const outline = direct ? unitCells(n, regions, o.why.type, o.why.idx) : [];
+    const ruled = crossed([...all].filter((i) => !base.has(i) || outline.includes(i)), new Set([o.i]));
     steps.push({
-      outline, ruled, target: -1, ghost: chain,
-      msg: o.why
-        ? 'Try a pet here: it rules out the green squares' + (o.why.forced ? ' and the pets it forces rule out more' : '') + '. Now the ' + unitLabel(o.why.type, o.why.idx) + ' has no square left for its pet, so it can’t go here.'
-        : 'Try a pet here: it rules out the green squares and leads to a dead end a few moves later, so it can’t go here.',
+      outline, ruled, target: -1, ghost: [o.i],
+      msg: direct
+        ? 'Try a pet here: it rules out the green squares. Now the ' + unitLabel(o.why.type, o.why.idx) + ' has no square left for its pet, so it can’t go here.'
+        : 'Try a pet here: it rules out the green squares, and the moves that follow run into a dead end, so it can’t go here.',
     });
   }
   steps.push({

@@ -61,8 +61,9 @@ export function explain({ n, regions, solution, cells }) {
     const target = u.open.find(isSol);
     if (target === undefined || u.open.length < 2) continue;
     const others = u.open.filter((c) => c !== target).map((c) => ({ i: c, why: contradiction(n, regions, pets, dead, c) }));
-    const score = [others.filter((o) => !o.why).length, u.open.length];
-    if (!best || score[0] < best.score[0] || (score[0] === best.score[0] && score[1] < best.score[1])) best = { score, u, target, others };
+    const score = [others.filter((o) => !o.why).length, others.filter((o) => o.why && o.why.forced > 0).length, u.open.length];
+    const better = !best || score.reduce((d, s, k) => d || Math.sign(best.score[k] - s), 0) > 0;
+    if (better) best = { score, u, target, others };
   }
   if (!best) return null;
   return { i: best.target, kind: 'deadend', type: best.u.type, idx: best.u.idx, others: best.others };

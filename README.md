@@ -39,6 +39,17 @@ firebase deploy
 
 This publishes hosting, `firestore.rules` and indexes. No composite indexes are needed.
 
+## About the Firebase API key in this repo
+
+`public/js/firebase-config.js` contains a Firebase **web API key** (`AIzaSy…`). That is intentional and **not a secret**: it only identifies the project, it is shipped inside the JavaScript of every Firebase web app, and anyone can already read it from the deployed site. GitHub secret scanning flags every Google API key, so an alert on this file is expected and is a false positive. Rotating the key or rewriting git history would not make it private.
+
+What actually protects the data is `firestore.rules`. To harden the key itself, restrict it in Google Cloud Console (APIs & Services → Credentials → the Browser key):
+
+- **Application restrictions:** Websites, allowing `<project-id>.web.app/*`, `<project-id>.firebaseapp.com/*` and `localhost/*`.
+- **API restrictions:** Identity Toolkit, Cloud Firestore and Token Service only.
+
+Never commit real secrets (service-account JSON files, admin SDK keys, server-side API keys). Keep those in environment variables or a secret manager.
+
 ## Data model
 
 | Path | Purpose |

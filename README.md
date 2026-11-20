@@ -1,5 +1,7 @@
 # Petdoku: daily pet region puzzle
 
+**Play it:** https://petdoku101.web.app (also served at https://petdoku-101.web.app)
+
 Mobile-first logic puzzle in the style of Meowdoku / Queens. Place one pet in every colour region:
 
 - exactly **one pet per colour region**, **one per row** and **one per column**
@@ -40,7 +42,7 @@ firebase login
 firebase deploy
 ```
 
-This publishes hosting, `firestore.rules` and indexes. No composite indexes are needed.
+This publishes hosting, `firestore.rules` and indexes. `firebase.json` lists two hosting sites in the `petdoku-101` project (`petdoku101` and `petdoku-101`), so one deploy updates both URLs; for your own project, replace them with your site id. No composite indexes are needed.
 
 ## About the Firebase API key in this repo
 
@@ -48,7 +50,7 @@ This publishes hosting, `firestore.rules` and indexes. No composite indexes are 
 
 What actually protects the data is `firestore.rules`. To harden the key itself, restrict it in Google Cloud Console (APIs & Services → Credentials → the Browser key):
 
-- **Application restrictions:** Websites, allowing `<project-id>.web.app/*`, `<project-id>.firebaseapp.com/*` and `localhost/*`.
+- **Application restrictions:** Websites, allowing every hosting URL (here `petdoku101.web.app/*` and `petdoku-101.web.app/*`), `<project-id>.firebaseapp.com/*` and `localhost/*`.
 - **API restrictions:** Identity Toolkit, Cloud Firestore and Token Service only.
 
 Never commit real secrets (service-account JSON files, admin SDK keys, server-side API keys). Keep those in environment variables or a secret manager.

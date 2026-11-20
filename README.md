@@ -16,18 +16,19 @@ Everyone gets the same board each day.
 
 - **Two daily modes** with 365 fixed puzzles each (puzzle number = day of year, Dec 31 in leap years reuses 365):
   - **Score Attack**: three levels every day, **Easy 6×6**, **Moderate 8×8** and **Hard 10×10** (each has its own 365 boards). You can play all three; each is its own game with its own 3 lives, saved progress, result and leaderboard. Ranked by score: a board starts at 300 / 550 / 800 points, a fast solve adds up to 200, each wrong pet costs 50 and each hint 75.
-  - **Time Attack**: 6×6 to 10×10 race. Ranked by time (+15 s per wrong pet, +30 s per hint).
+  - **Time Attack**: one race a day on an 8×8 or a 10×10 board, picked at random for each day (the same board for everyone). Ranked by time (+15 s per wrong pet, +30 s per hint).
 - **Profiles** with unique usernames (claimed atomically in Firestore), an animal avatar, streaks and all-time points. Nine animals (cat, dog, rabbit, fox, panda, bear, pig, mouse, frog) are selectable as avatar and as the board piece.
 - **Leaderboards** per day/mode plus all-time. Pick the day with the arrows, the swipeable day strip (recent days) or the date button, which opens a month calendar for any day back to 1 November 2026. Score Attack has a separate leaderboard for each level (the Easy, Moderate and Hard chips, next to Time Attack and All-time); each row shows the solve time and hearts left. Time Attack rows show hearts left and hints used. Results from before levels existed (one fixed-size board a day, up to 21 November 2026) are listed under the level closest to that day's size, marked "old 7×7 board" and so on.
 - While a leaderboard is loading, pets hop across a lane above a progress bar (shown only if the scores take longer than 150 ms; static when the device asks for reduced motion).
 - **Share**: tapping share copies the message to the clipboard straight away and opens a sheet showing it, with **Share via…** (the device share menu, where the browser has one) and **Copy message**. Every game shares its own result from its result sheet or out-of-lives sheet. The share icon on the Score Attack home card sends a summary of that day's three levels with the total; the one on the Time Attack card sends that result. The message is plain text with emoji: puzzle number and date, mode and board size, stars with score or time, solve time, hearts left, hints used (plus the time penalty in Time Attack), "Perfect run" for no wrong pets and no hints, and a link to the game.
 - **Calendar** runs from 1 November 2026; past days are playable as unranked practice.
-- Boards come from a seeded generator (`public/js/puzzle.js`) and every one has a unique solution. They are pre-built into `public/puzzles.json` with `npm run build:puzzles`, and `npm test` verifies all of them (365 × Easy, Moderate, Hard and Time Attack, plus the 60 older boards kept for 1 to 20 November 2026).
+- Boards come from a seeded generator (`public/js/puzzle.js`) and every one has a unique solution. They are pre-built into `public/puzzles.json` with `npm run build:puzzles`, and `npm test` verifies all of them (365 × Easy, Moderate, Hard and Time Attack, plus the 80 older boards kept for 1 to 20 November 2026).
 - **Levels differ by the reasoning they need, not only by size** (from 21 November 2026). `public/js/grade.js` solves each candidate board the way the hint engine does, always taking the simplest step that works, and the generator keeps trying seeds until a board fits its level:
   - **Easy**: only the two simplest steps (a row, column or colour with one square left; one colour that sits in a single row or column, or the reverse), and a pet can be placed almost straight away.
   - **Moderate**: also needs the step "a pet here would leave that colour, row or column with no square", and nothing deeper.
   - **Hard**: needs two or three colours locked into as many rows or columns, on top of plenty of the steps above.
-  - No level uses a board the hint engine cannot finish by logic alone. Time Attack boards are not graded.
+  - No level uses a board the hint engine cannot finish by logic alone.
+  - **Time Attack** uses the same bands: its 8×8 boards are graded as Moderate and its 10×10 boards as Hard. Before 21 November 2026 its size cycled from 6×6 to 10×10 and was not graded; those days keep their boards.
 
 ## Run locally
 

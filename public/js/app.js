@@ -202,7 +202,7 @@ function go(tab) {
 // ---------------- home ----------------
 function home() {
   const t = S.today, lv = levelFor(t), H = hist(), h = H[t] || {};
-  const tc = configFor('time', lv);
+  const tc = configFor('time', lv, undefined, t);
   const shareBtn = (mode, label) => `<span class="cshare" role="button" tabindex="0" data-share-mode="${mode}" aria-label="Share ${label} result">${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}</span>`;
   // Score Attack: three levels, each played once a day
   const L = LEVELS.map((k) => { const d = recOf(t, 'level', k, H), lost = !d && lostOf('level', t, k); return { d, lost, saved: !d && !lost && ls.get(gKey('level', t, k)) }; });
@@ -291,7 +291,7 @@ function cal() {
         const k = b.dataset.d, lv = levelFor(k), HH = hist(), r = HH[k] || {}, past = k < S.today, nl = LEVELS.filter((x) => recOf(k, 'level', x, HH)).length;
         const row = (mode) => (mode === 'level'
           ? `<button class="btn ${nl === LEVELS.length ? 'ghost' : ''}" data-m="level">Score Attack · ${nl ? nl + ' of ' + LEVELS.length + ' solved' : LEVELS.length + ' levels'}</button>`
-          : `<button class="btn ${r.time ? 'ghost' : ''}" data-m="time">Time Attack · ${configFor('time', lv).size}×${configFor('time', lv).size}${r.time ? ' · view' : ''}</button>`);
+          : `<button class="btn ${r.time ? 'ghost' : ''}" data-m="time">Time Attack · ${configFor('time', lv, undefined, k).size}×${configFor('time', lv, undefined, k).size}${r.time ? ' · view' : ''}</button>`);
         const s = sheet(`<h2>${fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
           <p class="sub">Puzzle ${lv} of 365${past ? ' · practice run, not ranked' : ''}</p>
           <div class="pick">${row('level')}${row('time')}</div>`);
@@ -320,7 +320,7 @@ function ranks() {
           const min = rankMin(); if (R.date < min) R.date = min; if (R.date > S.today) R.date = S.today;
           const end = addDays(R.date, 30) < S.today ? addDays(R.date, 30) : S.today;
           let start = addDays(end, -59); if (start < min) start = min;
-          const cfg = R.tab === 'level' ? configFor('level', levelFor(R.date), R.diff) : configFor('time', levelFor(R.date)); // the board this list is for
+          const cfg = R.tab === 'level' ? configFor('level', levelFor(R.date), R.diff) : configFor('time', levelFor(R.date), undefined, R.date); // the board this list is for
           let chips = '';
           for (let k = start; k <= end; k = addDays(k, 1)) {
             const dt = parseKey(k);
@@ -708,7 +708,7 @@ function shareText(date, mode, diff) {
     l.push('', solved ? 'Can you beat my scores?' : 'Think you can do better?');
   } else {
     const d = recOf(date, mode, diff, H), lost = !d && lostOf(mode, date, diff);
-    const c = mode === 'level' ? lvlCfg(date, diff, d || lost) : configFor(mode, lv);
+    const c = mode === 'level' ? lvlCfg(date, diff, d || lost) : configFor(mode, lv, undefined, date);
     l.push((mode === 'level' ? '🎯 Score Attack · ' + lvlName(c) : '⚡ Time Attack · ' + c.size + '×' + c.size) + (d?.practice ? ' · practice' : ''), '');
     if (d) {
       const perfect = !d.mistakes && !d.hints;

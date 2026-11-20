@@ -114,7 +114,7 @@ export function generatePuzzle({ size, seed }) {
   throw new Error('no unique puzzle found for ' + seed);
 }
 
-// ---- Difficulty bands (Score Attack levels) ----
+// ---- Difficulty bands (Score Attack levels, and Time Attack by board size) ----
 // A level is defined by the reasoning a board needs (see grade.js), not only by its size. miss() is 0
 // when the grade is inside the band, otherwise how far outside it is.
 //   easy      singles and one-colour-one-line steps only, a pet can be placed almost at once
@@ -180,7 +180,13 @@ export function configFor(mode, level, diff, date) {
       : { ...DIFFS[diff], grade: diff, seed: `petdoku-v3-${diff}-${level}` };
   }
   if (mode === 'level') { const t = TIERS[(level - 1) % 7]; return { ...t, legacy: true, seed: `petdoku-v1-level-${level}` }; }
-  return { name: 'Race', size: 6 + (level % 5), base: 0, seed: `petdoku-v1-time-${level}` };
+  // Time Attack: each day is an 8×8 graded like Moderate or a 10×10 graded like Hard, picked at random
+  // by puzzle number (the same for everyone). Before GRADED_FROM the size cycled 6 to 10 and was ungraded,
+  // so the size depends on the date too: pass the date whenever one is known.
+  const race = { key: 'time', name: 'Race', base: 0 };
+  if (date && date < GRADED_FROM) return { ...race, size: 6 + (level % 5), old: true, seed: `petdoku-v1-time-${level}` };
+  const big = hashSeed('petdoku-time-size-' + level) % 2 === 1;
+  return { ...race, size: big ? 10 : 8, grade: big ? 'hard' : 'moderate', seed: `petdoku-v2-time-${level}` };
 }
 
 export const pad = (n) => String(n).padStart(2, '0');

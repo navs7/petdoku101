@@ -40,7 +40,7 @@ results are rejected by the old rules.
 | `public/js/pets.js` | SVG sprite for the nine animals |
 | `public/js/firebase-config.js` | Public web config and the App Check site key (both public by design; `firestore.rules` and App Check protect the data) |
 | `public/css/app.css` | All styles; colour tokens on `:root`, dark mode via `prefers-color-scheme` |
-| `public/puzzles.json` | Pre-built boards: `easy`, `moderate`, `hard`, `time`, 365 each (`BANK_SETS`); `old.<level>.<puzzle number>` holds the ungraded boards of 1 to 20 Nov 2026 |
+| `public/puzzles.json` | Pre-built boards: `easy`, `moderate`, `hard`, `time`, 365 each (`BANK_SETS`); `old.<set>.<puzzle number>` holds the ungraded boards of 1 to 20 Nov 2026 |
 | `scripts/build-puzzles.js` | Writes `puzzles.json` |
 | `scripts/verify-puzzles.js` | Checks every stored board: size, unique solution, matches the seeded generator, inside its difficulty band |
 | `scripts/verify-hints.js` | Solves every board using hints only; fails on any unsound step |
@@ -53,7 +53,7 @@ results are rejected by the old rules.
 - **Puzzle number** = day of year (1–365; 31 Dec in a leap year reuses 365). `levelFor(dateKey)`.
 - **Games per day** (each is separate: own saved state, own 3 lives, own result, own leaderboard):
   - Score Attack `easy` 6×6, `moderate` 8×8, `hard` 10×10 — ranked by score
-  - Time Attack — one board, size 6–10 by day — ranked by adjusted time
+  - Time Attack — one board, 8×8 or 10×10 chosen at random per puzzle number (size cycled 6–10 before 21 Nov 2026) — ranked by adjusted time
 - In code, `mode` is `'level'` (Score Attack) or `'time'`; Score Attack also carries `diff`
   (`easy|moderate|hard`). `slot(mode, diff)` gives the storage/leaderboard name: `level_easy`,
   `level_moderate`, `level_hard`, `time`.
@@ -69,7 +69,7 @@ results are rejected by the old rules.
   `gradePuzzle` plays the hint engine from an empty board and returns `tier` (hardest step kind used: single, c1, block, c2, c3, reveal),
   `score` (weighted step count) and `opening` (steps before the first pet). Easy = tier ≤ c1, score ≤ 3, opening ≤ 2. Moderate = tier block,
   score 6–18. Hard = tier c2 or c3, score ≥ 20. No band accepts a `reveal`. `generateGraded` tries seeds `<seed>-0`, `<seed>-1`, … (up to
-  `GRADE_TRIES`) and keeps the first board in the band; the attempt number is stored as `a` in `puzzles.json`. Time Attack is not graded.
+  `GRADE_TRIES`) and keeps the first board in the band; the attempt number is stored as `a` in `puzzles.json`. Time Attack uses the band of its size (8×8 moderate, 10×10 hard).
 - **Hints** (`hints.js`): one logical step at a time — `cross` (free), `single`, `confine`, `block`, rare `reveal`.
   A hint never shows more than one pet and never guesses. Charged at most once per pet.
 
@@ -149,8 +149,8 @@ Sign-in is anonymous, so treat every Firestore document written by another playe
 
 - **Never change a puzzle seed or size for a set that is live** — it changes boards for dates already played.
   New sets get new seeds. Score Attack levels use `petdoku-v3-<diff>-<n>-<attempt>` from `GRADED_FROM` (21 Nov 2026); earlier dates keep
-  `petdoku-v2-<diff>-<n>` (`configFor(mode, level, diff, date)` picks by date, so pass the date when the board itself matters);
-  Time Attack still uses `petdoku-v1-time-<n>`.
+  `petdoku-v2-<diff>-<n>` (`configFor(mode, level, diff, date)` picks by date: pass the date when the board itself matters, and always for Time Attack, whose size differs before and after);
+  Time Attack uses `petdoku-v2-time-<n>-<attempt>` from the same date and `petdoku-v1-time-<n>` before it.
 - **Changing `hints.js` step logic, `grade.js` weights or `BANDS` changes which boards the graded generator picks**, which is the same as
   changing live boards. If one of those must change, add a new seed version with a start date, as `GRADED_FROM` does.
 - After changing `puzzle.js` generation or configs, run `npm run build:puzzles` then `npm test`.

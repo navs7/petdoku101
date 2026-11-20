@@ -1,26 +1,26 @@
 // Pre-computes every board into public/puzzles.json (run: npm run build:puzzles):
 // 365 puzzles for each Score Attack level (easy, moderate, hard) and 365 for Time Attack, plus the
-// ungraded Score Attack boards of the days before GRADED_FROM under "old" (keyed by puzzle number).
+// ungraded boards of the days before GRADED_FROM under "old" (keyed by puzzle number).
 // Entry: { s: size, r: region id per cell as a digit string, c: solution column per row as a digit string,
-//          a: which attempt of the graded generator this is (Score Attack levels only) }.
+//          a: which attempt of the graded generator this is (absent on the old boards) }.
 // The Hard level tries several 10×10 boards per day, so the work is spread over worker threads.
 import { writeFileSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { configFor, buildPuzzle, solve, levelFor, addDays, BANK_SETS, DIFFS, GRADED_FROM } from '../public/js/puzzle.js';
+import { configFor, buildPuzzle, solve, levelFor, addDays, BANK_SETS, GRADED_FROM } from '../public/js/puzzle.js';
 
 const CAL_START = '2026-11-01'; // first playable day (CAL_START in app.js)
 
 function jobs() {
   const out = [];
   for (const set of BANK_SETS) for (let lv = 1; lv <= 365; lv++) out.push({ set, lv });
-  for (let d = CAL_START; d < GRADED_FROM; d = addDays(d, 1)) for (const set of Object.keys(DIFFS)) out.push({ set, lv: levelFor(d), date: d });
+  for (let d = CAL_START; d < GRADED_FROM; d = addDays(d, 1)) for (const set of BANK_SETS) out.push({ set, lv: levelFor(d), date: d });
   return out;
 }
 
 if (!isMainThread) {
   for (const j of workerData) {
-    const cfg = j.set === 'time' ? configFor('time', j.lv) : configFor('level', j.lv, j.set, j.date), p = buildPuzzle(cfg);
+    const cfg = j.set === 'time' ? configFor('time', j.lv, undefined, j.date) : configFor('level', j.lv, j.set, j.date), p = buildPuzzle(cfg);
     if (solve(p.regions, p.size, 2).count !== 1) throw new Error(`not unique: ${j.set} ${j.lv}`);
     const e = { s: p.size, r: p.regions.join(''), c: p.solution.join('') };
     if (cfg.grade) e.a = p.attempt;

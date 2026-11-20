@@ -9,3 +9,9 @@ export const firebaseConfig = {
   appId: '1:1056439560171:web:58d80554d254fd96689bae',
 };
 export const isConfigured = !firebaseConfig.apiKey.startsWith('YOUR_');
+
+// App Check: proves requests come from this site, not a script. Create a reCAPTCHA key for your hosting
+// domains, register it under App Check in the Firebase console, then paste the SITE key here (it is public,
+// like the API key). While siteKey is empty App Check is off. provider: 'enterprise' (reCAPTCHA Enterprise)
+// or 'v3' (classic reCAPTCHA v3) - it must match the provider you registered in the console.
+export const appCheck = { provider: 'enterprise', siteKey: '6LcvbCkuAAAAAGtGz0QngHuR2H5qa7iV5bKfm6cc' };

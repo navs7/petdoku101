@@ -1,5 +1,5 @@
 // One interface, two implementations: Firebase (Auth + Firestore) or a local-only demo store.
-import { firebaseConfig, isConfigured } from './firebase-config.js';
+import { firebaseConfig, isConfigured, appCheck } from './firebase-config.js';
 
 export const USERNAME_RE = /^[a-z0-9_]{3,16}$/;
 const FB = 'https://www.gstatic.com/firebasejs/10.14.1';
@@ -67,11 +67,25 @@ function localBackend() {
 }
 
 // ---------------- Firebase ----------------
+// App Check attaches a short-lived proof to every Firestore request that it comes from this site.
+// It must start before Auth and Firestore are used. On localhost it runs in debug mode: the browser
+// console prints a debug token to register under App Check > Apps > Manage debug tokens.
+async function startAppCheck(app) {
+  if (!appCheck?.siteKey) return;
+  try {
+    const AC = await import(`${FB}/firebase-app-check.js`);
+    if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    const provider = appCheck.provider === 'v3' ? new AC.ReCaptchaV3Provider(appCheck.siteKey) : new AC.ReCaptchaEnterpriseProvider(appCheck.siteKey);
+    AC.initializeAppCheck(app, { provider, isTokenAutoRefreshEnabled: true });
+  } catch (e) { console.warn('App Check could not start', e); }
+}
+
 async function firebaseBackend() {
   const [{ initializeApp }, A, F] = await Promise.all([
     import(`${FB}/firebase-app.js`), import(`${FB}/firebase-auth.js`), import(`${FB}/firebase-firestore.js`),
   ]);
   const app = initializeApp(firebaseConfig);
+  await startAppCheck(app);
   const auth = A.getAuth(app);
   const db = F.getFirestore(app);
   let uid = null, profile = null;

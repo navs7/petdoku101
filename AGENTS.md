@@ -117,7 +117,9 @@ Sign-in is anonymous, so treat every Firestore document written by another playe
   `scripts/verify-rules.js` in the same commit, run `npm run test:rules`, and deploy rules with hosting.
 - Profile stats only change in a batch with a new result; the profile's `lastGame` field names that result so the rules can check it.
 - Not solved: scores are client-computed and solutions ship in `puzzles.json`, so a plausible fake result is
-  still possible; there is no App Check.
+  still possible.
+- App Check: `startAppCheck` in `backend.js` runs only when `appCheck.siteKey` is set in `firebase-config.js`.
+  Enforcement is a Firebase console switch; turn it on only after the deployed app is sending verified requests.
 
 ## Conventions
 

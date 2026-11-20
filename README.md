@@ -83,6 +83,6 @@ npm run test:rules   # needs Java 17+; downloads the Firestore emulator on first
 ## Known limits
 
 - Scores are computed client-side and the solutions ship with the app, so a determined player can still submit a fake result, as long as it is one the formula could produce (for example a very fast clean solve). For competitive integrity, move result validation into a Cloud Function.
-- There is no App Check, so the project's quota can be used by scripts creating anonymous accounts. Enable App Check (reCAPTCHA) in the Firebase console and enforce it for Firestore and Authentication to limit that.
+- App Check is wired in but off until a reCAPTCHA site key is set in `public/js/firebase-config.js` (`appCheck.siteKey`) and enforcement is turned on for Firestore in the Firebase console. Until then scripts can use the project's quota. Enforcing App Check for Authentication itself needs the Identity Platform upgrade.
 - Anonymous auth is tied to the browser. Clearing site data loses the account; add Google/email linking (`linkWithPopup`) if you need recovery.
 - Daily puzzle follows each player's local date, so players in different timezones see the new puzzle at their own midnight.

@@ -302,12 +302,14 @@ function cal() {
 }
 
 // ---------------- ranks ----------------
+// Loading state for a leaderboard: pets hopping across a lane above an indeterminate progress bar.
+const runner = (label = 'Fetching scores…') => `<div class="runner" role="status"><div class="lane" aria-hidden="true">${[0, 3, 2, 5].map((p, k) => `<span style="--k:${k}">${pet(p)}</span>`).join('')}</div><div class="bar" aria-hidden="true"><i></i></div><p>${label}</p></div>`;
 function ranks() {
   const R = S.rank;
   return {
     html: `<h1 class="title">Leaderboard</h1>
       <div class="filt" role="tablist" aria-label="Leaderboard">${[...LEVELS.map((k) => [k, DIFFS[k].name]), ['time', 'Time'], ['season', 'All-time']].map(([k, l]) => `<button role="tab" class="${k}" data-f="${k}" aria-selected="${(R.tab === 'level' ? R.diff : R.tab) === k}">${l}</button>`).join('')}</div>
-      <div id="db"></div><div class="rows" id="rows"><div class="empty">${pet(2)}Loading…</div></div>`,
+      <div id="db"></div><div class="rows" id="rows">${runner()}</div>`,
     bind(el) {
       const load = async () => {
         const db = $('#db'), rows = $('#rows'), mine = S.me.uid, token = (load.t = (load.t || 0) + 1);
@@ -333,8 +335,11 @@ function ranks() {
           if (on) ds.scrollLeft = on.offsetLeft - (ds.clientWidth - on.offsetWidth) / 2;
         }
         let list = [];
+        // show the loader only if the scores take a moment, so a fast answer doesn't flash it
+        const wait = setTimeout(() => { if (token === load.t) rows.innerHTML = runner(); }, 150);
         try { list = R.tab === 'season' ? await S.be.season() : await boardFor(R.date, R.tab, R.diff); }
-        catch (e) { console.error(e); rows.innerHTML = `<div class="empty">Could not load the board.</div>`; return; }
+        catch (e) { clearTimeout(wait); console.error(e); if (token !== load.t) return; rows.innerHTML = `<div class="empty">Could not load the board.</div>`; return; }
+        clearTimeout(wait);
         if (token !== load.t) return;
         if (!list.length) { rows.innerHTML = `<div class="empty">${pet(4)}<p>No one has finished yet.<br>Be the first on the board.</p></div>`; return; }
         rows.innerHTML = list.map((u, i) => {

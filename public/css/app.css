@@ -302,3 +302,19 @@ p { margin: 0; text-wrap: pretty; }
 .filt button.time { margin-left: 4px; }
 .filt button[aria-selected="true"] { background: var(--ink); color: var(--paper); box-shadow: none; }
 .starnote { color: var(--ink2); font-size: .82rem; margin: -4px 0 8px; }
+
+/* leaderboard loading: pets hopping across a lane, with an indeterminate progress bar */
+.runner { padding: 26px 6px 30px; text-align: center; color: var(--ink2); font-size: .9rem; }
+.runner .lane { position: relative; height: 58px; overflow: hidden; }
+.runner .lane span { position: absolute; bottom: 0; left: -14%; width: 44px; animation: petrun 2.6s linear infinite; animation-delay: calc(var(--k) * -.65s); }
+.runner .lane svg { display: block; width: 44px; height: 44px; animation: pethop .32s ease-in-out infinite alternate; animation-delay: calc(var(--k) * -.11s); }
+.runner .bar { height: 8px; border-radius: 99px; background: var(--paper2); box-shadow: 0 0 0 1.5px var(--line); overflow: hidden; margin: 2px 0 12px; }
+.runner .bar i { display: block; width: 38%; height: 100%; border-radius: 99px; background: var(--accent); animation: barslide 1.3s ease-in-out infinite; }
+@keyframes petrun { from { left: -14%; } to { left: 100%; } }
+@keyframes pethop { from { transform: translateY(0) rotate(-5deg); } to { transform: translateY(-11px) rotate(5deg); } }
+@keyframes barslide { from { transform: translateX(-105%); } to { transform: translateX(270%); } }
+@media (prefers-reduced-motion: reduce) {
+  .runner .lane span { animation: none !important; left: calc(8% + var(--k) * 23%); }
+  .runner .lane svg, .runner .bar i { animation: none !important; }
+  .runner .bar i { width: 100%; opacity: .5; }
+}

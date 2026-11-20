@@ -1,4 +1,4 @@
-# AGENT.md — working notes for Petdoku
+# AGENTS.md — working notes for Petdoku
 
 Reference for anyone (human or AI agent) picking this project up. The README describes the game for players
 and deployers; this file describes how the code is put together and what to watch out for when changing it.

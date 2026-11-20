@@ -24,20 +24,11 @@ service cloud.firestore {
     }
 
     // Daily results: days/{YYYY-MM-DD_<game>}/entries/{uid}, where <game> is level_easy, level_moderate,
-    // level_hard or time. One write per player per board. (Plain "_level" ids are older results, now read-only.)
+    // level_hard or time. One write per player per board. (Plain _level ids are older results, now read-only.)
     match /days/{dayId}/entries/{uid} {
       allow read: if true;
       allow create: if request.auth != null && request.auth.uid == uid
-        && dayId.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}_(level_(easy|moderate|hard)|time)
-        && request.resource.data.uid == uid
-        && request.resource.data.username == get(/databases/$(database)/documents/users/$(uid)).data.username
-        && request.resource.data.sortKey is number
-        && request.resource.data.score is number;
-      allow update, delete: if false;
-    }
-  }
-}
-)
+        && dayId.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}_(level_(easy|moderate|hard)|time)$')
         && request.resource.data.uid == uid
         && request.resource.data.username == get(/databases/$(database)/documents/users/$(uid)).data.username
         && request.resource.data.sortKey is number

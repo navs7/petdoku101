@@ -169,11 +169,12 @@ function home() {
   const lc = configFor('level', lv), tc = configFor('time', lv);
   const card = (mode, c, tag, title, blurb) => {
     const d = h[mode], saved = !d && ls.get(gKey(mode, t)); const lost = !d && ls.get(lostKey(mode, t));
-    return `<button class="mode ${mode} ${d ? 'done' : ''}" data-play="${mode}">
+    return `<button class="mode ${mode} ${d ? 'done' : ''} ${d || lost ? 'has-share' : ''}" data-play="${mode}">
       <span class="tag">${tag}</span><h2>${title}</h2><p>${blurb}</p>
       <div class="pile">${pet(mode === 'level' ? 5 : 0)}${pet(mode === 'level' ? 0 : 3)}${pet(mode === 'level' ? 7 : 8)}</div>
       <span class="go">${d ? 'Solved' : lost ? 'Out of lives' : saved ? 'Resume' : 'Play'} ${ico(d ? I.star : I.play, 'width="14" height="14" fill="currentColor"')}</span>
-      ${d ? `<span class="score">${mode === 'level' ? d.score + ' pts' : fmtTime(d.adj)}</span>` : ''}</button>`;
+      ${d ? `<span class="score">${mode === 'level' ? d.score + ' pts' : fmtTime(d.adj)}</span>` : ''}
+      ${d || lost ? `<span class="cshare" role="button" tabindex="0" data-share-mode="${mode}" aria-label="Share ${mode === 'level' ? 'daily level' : 'time attack'} result">${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}</span>` : ''}</button>`;
   };
   const days = [...Array(7)].map((_, i) => addDays(t, i - 6));
   const H = hist();
@@ -187,12 +188,15 @@ function home() {
       </div>
       <div class="sec"><h3>This week</h3><span>${S.me.totalPoints || 0} pts all-time</span></div>
       <div class="week">${days.map((d) => `<div class="wd ${d === t ? 'today' : ''}">${fmtDate(d, { weekday: 'short' })}<b>${parseKey(d).getDate()}</b><i><em class="l ${H[d]?.level ? 'on' : ''}"></em><em class="t ${H[d]?.time ? 'on' : ''}"></em></i></div>`).join('')}</div>
-      ${h.level || h.time ? `<div class="acts"><button class="btn ghost" data-share>${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}Share today’s status</button></div>` : ''}
       <p class="next">Next puzzle in <b id="cd">${untilMidnight()}</b></p>`,
     bind(el) {
+      el.addEventListener('keydown', (e) => { // the share control sits inside the card button, so give it its own keys
+        const sh = e.target.closest?.('[data-share-mode]');
+        if (sh && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); share(t, sh.dataset.shareMode); }
+      });
       el.addEventListener('click', (e) => {
+        const sh = e.target.closest('[data-share-mode]'); if (sh) return share(t, sh.dataset.shareMode);
         const p = e.target.closest('[data-play]'); if (p) return open(p.dataset.play, t);
-        if (e.target.closest('[data-share]')) share(t);
       });
     },
   };
@@ -546,7 +550,7 @@ async function resultSheet(mode, date, d, fromHome) {
       <div class="acts"><button class="btn" data-share>${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}Share result</button>
         <button class="btn ghost" data-lb>See leaderboard</button><button class="btn ghost" data-close data-home>Done</button></div></div>`);
   s.addEventListener('click', (e) => {
-    if (e.target.closest('[data-share]')) share(date);
+    if (e.target.closest('[data-share]')) share(date, mode);
     if (e.target.closest('[data-lb]')) { s.remove(); S.rank.tab = mode; S.rank.date = date; go('ranks'); }
     if (e.target.closest('[data-home]')) go('home');
   });
@@ -557,17 +561,20 @@ async function resultSheet(mode, date, d, fromHome) {
     } catch { /* offline */ }
   }
 }
-function shareText(date) {
-  const h = hist()[date] || {}, lv = levelFor(date), paws = (n) => '🐾'.repeat(n);
-  const l = [`🐾 Petdoku #${lv} · ${fmtDate(date)}`];
-  if (h.level) l.push(`Level  ${paws(h.level.stars)}  ${h.level.score} pts · ${fmtTime(h.level.ms)} · ${h.level.mistakes} slips`);
-  if (h.time) l.push(`Time   ${paws(h.time.stars)}  ${fmtTime(h.time.adj)}`);
-  if (!h.level && !h.time) l.push('Not solved yet…');
+// Text for one mode's result (each mode is shared on its own).
+function shareText(date, mode) {
+  const d = (hist()[date] || {})[mode], lv = levelFor(date), paws = (n) => '🐾'.repeat(n);
+  const name = mode === 'level' ? 'Daily level' : 'Time attack';
+  const l = ['🐾 Petdoku #' + lv + ' · ' + name + ' · ' + fmtDate(date)];
+  if (d && mode === 'level') l.push(paws(d.stars) + '  ' + d.score + ' pts · ' + fmtTime(d.ms) + ' · ' + '♥'.repeat(Math.max(0, LIVES - d.mistakes)) + '♡'.repeat(Math.min(LIVES, d.mistakes)));
+  else if (d) l.push(paws(d.stars) + '  ' + fmtTime(d.adj) + ' · ' + '♥'.repeat(Math.max(0, LIVES - d.mistakes)) + '♡'.repeat(Math.min(LIVES, d.mistakes)));
+  else if (ls.get(lostKey(mode, date))) l.push('✕ Out of lives ' + '♡'.repeat(LIVES));
+  else l.push('Not solved yet…');
   l.push(location.origin + '/');
   return l.join('\n');
 }
-async function share(date) {
-  const text = shareText(date);
+async function share(date, mode) {
+  const text = shareText(date, mode);
   try { if (navigator.share) return await navigator.share({ text }); } catch (e) { if (e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(text); toast('Copied. Paste it anywhere!'); } catch { prompt('Copy your result:', text); }
 }

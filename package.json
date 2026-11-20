@@ -7,6 +7,7 @@
     "dev": "node scripts/serve.js",
     "test": "node scripts/verify-puzzles.js && node scripts/verify-hints.js",
     "deploy": "firebase deploy",
-    "build:puzzles": "node scripts/build-puzzles.js"
+    "build:puzzles": "node scripts/build-puzzles.js",
+    "test:rules": "npx --yes firebase-tools@13.29.1 emulators:exec --only firestore --project petdoku-101 \"node scripts/verify-rules.js\""
   }
 }

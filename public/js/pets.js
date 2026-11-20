@@ -89,5 +89,7 @@ export function mountSprite() {
   document.body.prepend(s);
 }
 // i is the 0-based animal index
-export const pet = (i, cls = '') =>
-  `<svg class="cat ${cls}" viewBox="0 0 64 64" aria-hidden="true"><use href="#pet-${i}"/></svg>`;
+export const pet = (i, cls = '') => {
+  const n = Number.isInteger(i) && i >= 0 && i < ANIMALS.length ? i : 0; // i may come from another player's record
+  return `<svg class="cat ${/^[\w -]*$/.test(cls) ? cls : ''}" viewBox="0 0 64 64" aria-hidden="true"><use href="#pet-${n}"/></svg>`;
+};

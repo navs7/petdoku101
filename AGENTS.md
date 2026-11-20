@@ -18,6 +18,7 @@ and column; pets may not touch, even diagonally. Every board has exactly one sol
 ```powershell
 npm run dev            # static server on http://localhost:5173 (add ?demo to use the offline localStorage backend)
 npm test               # verify-puzzles (about 5 minutes) then verify-hints (seconds)
+npm run test:rules     # firestore.rules against the emulator (Java 17+, uses firebase-tools@13 via npx)
 npm run build:puzzles  # regenerate public/puzzles.json (several minutes; only when seeds or sizes change)
 firebase deploy --project petdoku-101 --only hosting                   # both sites
 firebase deploy --project petdoku-101 --only hosting,firestore:rules   # when firestore.rules changed
@@ -42,6 +43,7 @@ results are rejected by the old rules.
 | `scripts/build-puzzles.js` | Writes `puzzles.json` |
 | `scripts/verify-puzzles.js` | Checks every stored board: size, unique solution, matches the seeded generator |
 | `scripts/verify-hints.js` | Solves every board using hints only; fails on any unsound step |
+| `scripts/verify-rules.js` | Allowed/denied cases for `firestore.rules`, run inside the Firestore emulator |
 | `firestore.rules` | Username registry, profiles, create-only daily results |
 | `firebase.json` | `hosting` is an array (one entry per site); JS/CSS are served `no-cache` |
 
@@ -103,6 +105,20 @@ Firestore: `usernames/{name}`, `users/{uid}`, `days/{YYYY-MM-DD_<slot>}/entries/
 fold those into the nearest new level (`legacyDiff`) and label them with their old size. Records without a
 `diff` field are legacy. Do not remove this without deciding what happens to those results.
 
+## Security model
+
+Sign-in is anonymous, so treat every Firestore document written by another player as hostile input.
+
+- **Never put a remote field into `innerHTML` raw.** `backend.js` returns leaderboard rows through `cleanEntry` /
+  `cleanUser`, which rebuild each record from known fields with known types and ranges. A new field must be
+  added there (and to the rules) before it is displayed. `pet()` also ignores anything that is not a valid animal index.
+- **`firestore.rules` mirrors the app's payloads exactly** (`keys().hasOnly`, types, ranges, the score formula).
+  If you change what `checkWin` submits, what `createProfile` writes, or `scoreFor`, change the rules and
+  `scripts/verify-rules.js` in the same commit, run `npm run test:rules`, and deploy rules with hosting.
+- Profile stats only change in a batch with a new result; the profile's `lastGame` field names that result so the rules can check it.
+- Not solved: scores are client-computed and solutions ship in `puzzles.json`, so a plausible fake result is
+  still possible; there is no App Check.
+
 ## Conventions
 
 - User-facing words: **Score Attack**, **Time Attack**, **level** (Easy/Moderate/Hard), **Puzzle N** (the day's number),
@@ -130,7 +146,7 @@ fold those into the nearest new level (`legacyDiff`) and label them with their o
 
 ## Testing checklist for a gameplay change
 
-1. `npm test` (or at least `node scripts/verify-hints.js` when boards are unchanged).
+1. `npm test` (or at least `node scripts/verify-hints.js` when boards are unchanged); `npm run test:rules` if rules or submitted fields changed.
 2. In `?demo` at phone width: play a board to a win, lose one on purpose, resume a saved game,
    open the leaderboard for that game, share from the result sheet and from the home card.
 3. Check a legacy day (before 21 Nov 2026) still shows its old result under the right level.

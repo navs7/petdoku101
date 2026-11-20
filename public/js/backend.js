@@ -19,6 +19,24 @@ function nextStats(profile, entry, today) {
   };
 }
 
+// Records written by other players are untrusted input: anyone can write to Firestore with their own
+// sign-in, bypassing this app. Everything read for display is rebuilt here from known fields with known
+// types, so no stored value can reach the page as markup. (firestore.rules enforces the same shapes.)
+const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+const int = (v, lo, hi, d = 0) => Math.round(num(v, lo, hi, d));
+const name = (v) => (typeof v === 'string' && /^[a-z0-9_]{3,16}$/.test(v) ? v : 'player');
+const id = (v) => (typeof v === 'string' ? v.slice(0, 128) : '');
+export const cleanEntry = (e = {}) => ({
+  uid: id(e.uid), username: name(e.username), avatar: int(e.avatar, 0, 8),
+  score: int(e.score, 0, 1000), sortKey: num(e.sortKey, 0, 1e13), adj: num(e.adj, 0, 1e9), ms: int(e.ms, 0, 1e9),
+  mistakes: int(e.mistakes, 0, 3), hints: int(e.hints, 0, 999), stars: int(e.stars, 1, 3, 1),
+  ...(['easy', 'moderate', 'hard'].includes(e.diff) ? { diff: e.diff } : {}),
+});
+export const cleanUser = (u = {}) => ({
+  uid: id(u.uid), username: name(u.username), avatar: int(u.avatar, 0, 8),
+  streak: int(u.streak, 0, 1e5), bestStreak: int(u.bestStreak, 0, 1e5), totalPoints: int(u.totalPoints, 0, 1e9), solved: int(u.solved, 0, 1e6),
+});
+
 // ---------------- Local demo ----------------
 function localBackend() {
   const users = () => ls.get('purr:users', {});
@@ -42,8 +60,8 @@ function localBackend() {
       const u = users(); u[me] = { ...u[me], ...nextStats(u[me], entry, today) }; ls.set('purr:users', u);
       return u[me];
     },
-    async board(dayId) { return Object.values(ls.get('purr:entries:' + dayId, {})).sort((a, b) => a.sortKey - b.sortKey).slice(0, 50); },
-    async season() { return Object.values(users()).sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 50); },
+    async board(dayId) { return Object.values(ls.get('purr:entries:' + dayId, {})).map(cleanEntry).sort((a, b) => a.sortKey - b.sortKey).slice(0, 50); },
+    async season() { return Object.values(users()).map(cleanUser).sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 50); },
     async signOut() { ls.set('purr:me', null); me = null; },
   };
 }
@@ -86,7 +104,7 @@ async function firebaseBackend() {
     },
     async setAvatar(avatar) { await F.updateDoc(F.doc(db, 'users', uid), { avatar }); return (profile = { ...profile, avatar }); },
     async submit(dayId, entry, today) {
-      const stats = nextStats(profile, entry, today);
+      const stats = { ...nextStats(profile, entry, today), lastGame: dayId }; // lastGame lets the rules tie these stats to the new entry
       const b = F.writeBatch(db); // entry is create-only, so a replay fails the whole batch
       b.set(F.doc(db, 'days', dayId, 'entries', uid), { ...entry, uid, username: profile.username });
       b.update(F.doc(db, 'users', uid), stats);
@@ -95,11 +113,11 @@ async function firebaseBackend() {
     },
     async board(dayId) {
       const q = F.query(F.collection(db, 'days', dayId, 'entries'), F.orderBy('sortKey'), F.limit(50));
-      return (await F.getDocs(q)).docs.map((d) => d.data());
+      return (await F.getDocs(q)).docs.map((d) => cleanEntry(d.data()));
     },
     async season() {
       const q = F.query(F.collection(db, 'users'), F.orderBy('totalPoints', 'desc'), F.limit(50));
-      return (await F.getDocs(q)).docs.map((d) => d.data());
+      return (await F.getDocs(q)).docs.map((d) => cleanUser(d.data()));
     },
     async signOut() { await A.signOut(auth); },
   };

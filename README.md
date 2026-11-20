@@ -66,8 +66,23 @@ Never commit real secrets (service-account JSON files, admin SDK keys, server-si
 | `users/{uid}` | profile, streak, totalPoints |
 | `days/{YYYY-MM-DD_level_easy\|level_moderate\|level_hard\|time}/entries/{uid}` | one create-only result per player per board; `sortKey` ascending = rank |
 
+## Security
+
+Players sign in anonymously, so anyone can talk to Firestore directly with their own sign-in. Two layers deal with that:
+
+- **`firestore.rules`** (checked by `npm run test:rules`, 51 cases against the Firestore emulator):
+  - usernames are 3–16 characters of `a–z`, `0–9`, `_`; one per account, claimed together with the profile, never changed or freed
+  - a profile starts at zero and can only change its avatar, or its stats together with a new result (exactly that result's score, one more solve, streak up by at most one)
+  - a result is create-only, only known fields with number types, only for the server's date give or take a day, and its score, adjusted time and rank key must be values the scoring formula can produce
+- **The app** rebuilds every record it reads for display from known, typed fields (`cleanEntry`, `cleanUser` in `backend.js`), so stored data can never reach the page as markup.
+
+```powershell
+npm run test:rules   # needs Java 17+; downloads the Firestore emulator on first run
+```
+
 ## Known limits
 
-- Scores are computed client-side, so a determined player could submit a fake result. For competitive integrity, move result validation into a Cloud Function (verify the solve time/board server-side).
+- Scores are computed client-side and the solutions ship with the app, so a determined player can still submit a fake result, as long as it is one the formula could produce (for example a very fast clean solve). For competitive integrity, move result validation into a Cloud Function.
+- There is no App Check, so the project's quota can be used by scripts creating anonymous accounts. Enable App Check (reCAPTCHA) in the Firebase console and enforce it for Firestore and Authentication to limit that.
 - Anonymous auth is tied to the browser. Clearing site data loses the account; add Google/email linking (`linkWithPopup`) if you need recovery.
 - Daily puzzle follows each player's local date, so players in different timezones see the new puzzle at their own midnight.

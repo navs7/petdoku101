@@ -1,6 +1,6 @@
 import { getPuzzle, configFor, levelFor, dateKey, parseKey, addDays, scoreFor, fmtTime } from './puzzle.js';
 import { ANIMALS, pet, mountSprite } from './pets.js';
-import { explain, unitCells, blockedCells } from './hints.js';
+import { nextHint, applyHint, unitCells } from './hints.js';
 import { createBackend, USERNAME_RE, ls } from './backend.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -325,7 +325,7 @@ function startGame(mode, date) {
     const ok = sv && sv.cells?.length === n * n;
     G = {
       mode, date, level, cfg, n, regions: p.regions, solution: p.solution,
-      cells: ok ? sv.cells.map((v, i) => (v === 2 && p.solution[(i / n) | 0] !== i % n ? 3 : v)) : new Array(n * n).fill(0), ms: ok ? sv.ms : 0, mistakes: ok ? sv.mistakes : 0, hints: ok ? sv.hints : 0,
+      cells: ok ? sv.cells.map((v, i) => (v === 2 && p.solution[(i / n) | 0] !== i % n ? 3 : v)) : new Array(n * n).fill(0), ms: ok ? sv.ms : 0, mistakes: ok ? sv.mistakes : 0, hints: ok ? sv.hints : 0, hintPaid: ok ? sv.hintPaid ?? -1 : -1,
       undo: [], paused: false, done: false, practice: date !== S.today, last: performance.now(), pop: -1,
     };
     renderGame();
@@ -336,7 +336,7 @@ function startGame(mode, date) {
     }, 250);
   }, 40);
 }
-const persist = () => G && !G.done && ls.set(gKey(G.mode, G.date), { cells: G.cells, ms: G.ms, mistakes: G.mistakes, hints: G.hints });
+const persist = () => G && !G.done && ls.set(gKey(G.mode, G.date), { cells: G.cells, ms: G.ms, mistakes: G.mistakes, hints: G.hints, hintPaid: G.hintPaid });
 
 // Cell values: 0 empty, 1 white ✕ note, 2 correct pet (locked), 3 wrong pet = red ✕ (locked, cost a life).
 // Every pet is judged against the unique solution, so a correct pet can never be blamed for a wrong one.
@@ -373,7 +373,7 @@ function paint() {
     const cls = ['cell', c < n - 1 && regions[i] !== regions[i + 1] && 'rB', r < n - 1 && regions[i] !== regions[i + n] && 'bB', c === n - 1 && 'eR', r === n - 1 && 'eB',
       v === 3 && 'bad', i === G.pop && 'pop', v === 1 && 'marked',
       hv && !(ghost.has(i) || ruled.has(i) || out.has(i) || i === tgt || v >= 2) && 'hv-dim', hv && out.has(i) && 'hv-out',
-      ghost.has(i) && (i === st.ghost[0] ? 'hv-try' : 'hv-forced'), i === tgt && 'hv-target'].filter(Boolean).join(' ');
+      hv && st.src.includes(i) && 'hv-src', i === tgt && 'hv-target'].filter(Boolean).join(' ');
     const inner = hv && (ghost.has(i) || i === tgt) ? pet(icon) : hv && ruled.has(i) ? RULED_X : v === 3 ? RED_X : v === 2 ? pet(icon) : v === 1 ? X_SVG : '';
     b += `<button class="${cls}" data-i="${i}" style="background:${COLORS[regions[i]]};--i:${i}" aria-label="Row ${r + 1} column ${c + 1}, region ${regions[i] + 1}, ${v === 3 ? 'wrong pet, locked' : v === 2 ? 'pet, locked' : v === 1 ? 'marked' : 'empty'}">${inner}</button>`;
   }
@@ -390,7 +390,7 @@ function setPaused(p) {
 }
 function act(a) {
   if (!G) return;
-  if (G.hv && a !== 'back') { if (a === 'hv-next') hintStep(1); else if (a === 'hv-prev') hintStep(-1); else if (a === 'hv-apply') endHint(true); else if (a === 'hv-close') endHint(false); return; }
+  if (G.hv && a !== 'back') { if (a === 'hv-apply') endHint(true); else if (a === 'hv-close') endHint(false); return; }
   if (a === 'back') { persist(); go(S.tab); }
   else if (a === 'pause') setPaused(!G.paused);
   else if (a === 'resume') setPaused(false);
@@ -431,67 +431,67 @@ function tap(i) {
   const nv = v === 0 ? 1 : 0; G.undo.push({ i, v, nv, at: now }); G.cells[i] = nv;
   paint(); persist();
 }
-// ---- hint: a step-by-step visual walkthrough on the board; the pet is only placed (and charged) on Apply ----
+// ---- hint: ONE logical step at a time, shown on the board (see hints.js). A hint either crosses squares
+// out or places one pet; it never guesses and never shows a pet other than the one it places. ----
 const unitLabel = (type, idx) => (type === 'region' ? '<span class="sw" style="background:' + COLORS[idx] + '"></span><b>' + NAMES[idx] + '</b> region' : type === 'row' ? '<b>row ' + (idx + 1) + '</b>' : '<b>column ' + (idx + 1) + '</b>');
+const listOf = (items) => (items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]);
+const squares = (k) => (k === 1 ? 'the highlighted square' : 'all ' + k + ' highlighted squares');
 
-function buildSteps(ex) {
-  const { n, regions, cells } = G, pets = [], dead = new Set();
-  cells.forEach((v, i) => { if (v === 2) pets.push(i); else if (v === 3) dead.add(i); });
-  const base = blockedCells(n, regions, pets), steps = [];
-  const crossed = (tiles, skip) => tiles.filter((i) => !skip.has(i) && !pets.includes(i) && !dead.has(i));
-  if (ex.kind !== 'deadend') {
-    const tiles = unitCells(n, regions, ex.type, ex.idx);
-    steps.push({
-      outline: tiles, ruled: crossed(tiles.filter((i) => i !== ex.i), new Set()), target: ex.i, ghost: [],
-      msg: tiles.length === 1
-        ? 'The ' + unitLabel(ex.type, ex.idx) + ' is a single square, so its pet has to go here.'
-        : 'The ' + unitLabel(ex.type, ex.idx) + ' still needs a pet. Every other square in it is ruled out by pets you have already placed, so the pet goes here.',
-    });
-    return steps;
+// Turns an engine step into what to draw: { outline, ruled, target, src, msg }.
+function hintView(h) {
+  const { n, regions } = G, k = h.todo.length;
+  if (h.kind === 'cross') {
+    return { outline: h.todo, ruled: h.todo, target: -1, src: h.pets,
+      msg: (h.pets.length === 1 ? 'A pet rules' : 'Each pet rules') + ' out every other square in its row, column and colour, plus every touching square. Cross out ' + squares(k) + '.' };
   }
-  for (const o of ex.others) {
-    // Only the tile being tried is drawn. Follow-up pets are never shown: they could be real, undiscovered pets.
-    const direct = o.why && o.why.forced === 0, all = blockedCells(n, regions, [...pets, o.i]);
-    const outline = direct ? unitCells(n, regions, o.why.type, o.why.idx) : [];
-    const ruled = crossed([...all].filter((i) => !base.has(i) || outline.includes(i)), new Set([o.i]));
-    steps.push({
-      outline, ruled, target: -1, ghost: [o.i],
-      msg: direct
-        ? 'Try a pet here: it rules out the green squares. Now the ' + unitLabel(o.why.type, o.why.idx) + ' has no square left for its pet, so it can’t go here.'
-        : 'Try a pet here: it rules out the green squares, and the moves that follow run into a dead end, so it can’t go here.',
-    });
+  if (h.kind === 'single') {
+    const tiles = unitCells(n, regions, h.type, h.idx);
+    return { outline: tiles, ruled: [], target: h.i, src: [],
+      msg: tiles.length === 1 ? 'The ' + unitLabel(h.type, h.idx) + ' is a single square, so its pet goes here.'
+        : 'Only one square is left in the ' + unitLabel(h.type, h.idx) + ', so its pet goes here.' };
   }
-  steps.push({
-    outline: unitCells(n, regions, ex.type, ex.idx), ruled: ex.others.map((x) => x.i), target: ex.i, ghost: [],
-    msg: 'Every other square in the ' + unitLabel(ex.type, ex.idx) + ' fails, so its pet belongs here.',
-  });
-  return steps;
+  if (h.kind === 'confine') {
+    const lt = h.lineType, lines = listOf(h.lines.map((x) => unitLabel(lt, x))), regs = listOf(h.regions.map((x) => unitLabel('region', x))), one = h.lines.length === 1;
+    const msg = h.dir === 'regions'
+      ? (one ? 'Every open square of the ' + regs + ' is in ' + lines + ', so the pet of ' + lines + ' must come from this region. Cross out ' + squares(k) + ' in the rest of ' + lines + '.'
+             : 'The ' + regs + ' only have open squares in ' + lines + ', so the pets of those lines must come from these regions. Cross out ' + squares(k) + ' in the rest of those lines.')
+      : (one ? 'Every open square in ' + lines + ' belongs to the ' + regs + ', so that region’s pet must be in ' + lines + '. Cross out ' + squares(k) + ' in the rest of that region.'
+             : 'The open squares in ' + lines + ' all belong to the ' + regs + ', so those regions’ pets must be in these lines. Cross out ' + squares(k) + ' in the rest of those regions.');
+    return { outline: h.keep, ruled: h.todo, target: -1, src: [], msg };
+  }
+  if (h.kind === 'block') {
+    return { outline: h.keep, ruled: h.todo, target: -1, src: [],
+      msg: (k === 1 ? 'A pet on the highlighted square' : 'A pet on any highlighted square') + ' would rule out every open square of the ' + unitLabel(h.victim.type, h.victim.idx) + ' (dashed). So no pet can go there: cross out ' + squares(k) + '.' };
+  }
+  return { outline: unitCells(n, regions, h.type, h.idx), ruled: [], target: h.i, src: [],
+    msg: 'No simple rule gives the next step here. Looking a few moves ahead, the pet of the ' + unitLabel(h.type, h.idx) + ' can only go here.' };
 }
-function drawHint() {
-  const hv = G.hv, st = hv.steps[hv.k], last = hv.k === hv.steps.length - 1;
-  const hm = $('#hm'), hb = $('#hb');
-  hm.innerHTML = '<button class="hclose" data-act="hv-close" aria-label="Close hint">✕</button>'
-    + (hv.steps.length > 1 ? '<small>Step ' + (hv.k + 1) + ' of ' + hv.steps.length + '</small>' : '<small>Hint</small>') + '<p>' + st.msg + '</p>';
-  hb.innerHTML = (hv.k > 0 ? '<button class="btn ghost" data-act="hv-prev">Back</button>' : '')
-    + (last ? '<button class="btn" data-act="hv-apply">Apply</button><small>' + (G.mode === 'level' ? '−75 pts' : '+30 s') + ' for the hint</small>' : '<button class="btn" data-act="hv-next">Next</button>');
-  hb.classList.toggle('two', hv.k > 0);
-  $('#st').hidden = true; $('.tools').hidden = true; hm.hidden = false; hb.hidden = false;
-  paint();
-}
-function hintStep(d) { const hv = G.hv; hv.k = Math.max(0, Math.min(hv.steps.length - 1, hv.k + d)); drawHint(); }
 function hint() {
-  const ex = explain({ n: G.n, regions: G.regions, solution: G.solution, cells: G.cells }); if (!ex) return;
-  G.hv = { ex, steps: buildSteps(ex), k: 0 };
+  const h = nextHint({ n: G.n, regions: G.regions, solution: G.solution, cells: G.cells }); if (!h) return;
+  // Crossing out around pets you already placed is free. Any other hint is charged when it is shown (it
+  // reveals the step), but at most once per pet: every further hint until the next pet is placed is covered.
+  const placed = G.cells.filter((v) => v === 2).length, charged = !h.free && G.hintPaid !== placed;
+  if (charged) { G.hints++; G.hintPaid = placed; persist(); }
+  G.hv = { h, steps: [hintView(h)], k: 0 };
   G.hv.layer = addLayer(() => endHint(false), 'hint');
   G.paused = true; G.last = performance.now();
-  drawHint();
+  const hm = $('#hm'), hb = $('#hb'), cost = h.free ? 'Free hint' : charged ? 'Hint used · ' + (G.mode === 'level' ? '−75 pts' : '+30 s') : 'Hint · already counted for this pet';
+  hm.innerHTML = '<button class="hclose" data-act="hv-close" aria-label="Close hint">✕</button><small>' + cost + '</small><p>' + G.hv.steps[0].msg + '</p>';
+  hb.innerHTML = '<button class="btn" data-act="hv-apply">Apply</button>';
+  hb.classList.remove('two');
+  $('#st').hidden = true; $('.tools').hidden = true; hm.hidden = false; hb.hidden = false;
+  paint();
 }
 function endHint(apply) {
   const hv = G?.hv; if (!hv) return;
   G.hv = null; removeLayer(hv.layer);
   G.paused = false; G.last = performance.now();
   $('#hm').hidden = true; $('#hb').hidden = true; $('#st').hidden = false; $('.tools').hidden = false;
-  if (apply) { G.cells[hv.ex.i] = 2; G.pop = hv.ex.i; G.hints++; paint(); persist(); checkWin(); } else paint();
+  if (apply) {
+    applyHint(G.cells, hv.h);
+    if (hv.h.kind === 'single' || hv.h.kind === 'reveal') G.pop = hv.h.i;
+    paint(); persist(); checkWin();
+  } else paint();
 }
 
 function gameOver() {

@@ -1,27 +1,39 @@
-// Walks every pre-built puzzle by repeatedly asking for a hint and checks that each explanation is sound:
-// the hinted tile is the solution tile, and every alternative the explanation rejects is really wrong.
+// Solves every pre-built puzzle using nothing but hints and checks each step is sound:
+//  - a pet is only ever placed on its solution tile
+//  - a square that gets crossed out is never a solution tile
+//  - one hint places at most one pet, and the puzzle finishes
+// Also plays a "no notes" player (who ignores cross-out hints' effect by clearing them) to make sure the
+// engine never loops.
 import { readFileSync } from 'node:fs';
-import { explain } from '../public/js/hints.js';
+import { nextHint, applyHint } from '../public/js/hints.js';
 
 const bank = JSON.parse(readFileSync(new URL('../public/puzzles.json', import.meta.url), 'utf8'));
-let puzzles = 0, hints = 0, forced = 0, dead = 0, unexplained = 0, bad = 0;
-for (const mode of ['level', 'time']) for (const e of bank[mode]) {
+const tally = {}; let puzzles = 0, hints = 0, bad = 0, maxSteps = 0;
+const fail = (msg, mode, k) => { bad++; console.error(`${msg} [${mode} ${k + 1}]`); };
+
+for (const mode of ['level', 'time']) bank[mode].forEach((e, k) => {
   const n = e.s, regions = [...e.r].map(Number), solution = [...e.c].map(Number), cells = new Array(n * n).fill(0);
+  const isSol = (i) => solution[(i / n) | 0] === i % n;
   puzzles++;
-  for (let step = 0; step < n; step++) {
-    const ex = explain({ n, regions, solution, cells });
-    if (!ex) break;
-    hints++;
-    if (solution[(ex.i / n) | 0] !== ex.i % n) { bad++; console.error('hint is not the solution tile', mode, e.s); break; }
-    if (ex.kind === 'deadend') {
-      dead++;
-      for (const o of ex.others) {
-        if (solution[(o.i / n) | 0] === o.i % n) { bad++; console.error('rejected the solution tile'); }
-        if (!o.why) unexplained++;
-      }
-    } else forced++;
-    cells[ex.i] = 2;
+  let steps = 0;
+  for (; steps < 600; steps++) {
+    const h = nextHint({ n, regions, solution, cells });
+    if (!h) break;
+    hints++; tally[h.kind] = (tally[h.kind] || 0) + 1;
+    if (h.kind === 'single' || h.kind === 'reveal') {
+      if (!isSol(h.i)) { fail(`${h.kind} placed a pet off the solution`, mode, k); break; }
+    } else {
+      if (!h.todo.length) { fail(`${h.kind} hint with nothing to do`, mode, k); break; }
+      if (h.cells.some(isSol)) { fail(`${h.kind} crossed out a solution tile`, mode, k); break; }
+    }
+    const before = cells.filter((v) => v === 2).length;
+    applyHint(cells, h);
+    if (cells.filter((v) => v === 2).length - before > 1) { fail('one hint placed more than one pet', mode, k); break; }
   }
-}
-console.log(`${puzzles} puzzles, ${hints} hints: ${forced} forced-tile, ${dead} elimination (${unexplained} alternatives without a visible dead end), ${bad} errors`);
+  if (cells.filter((v) => v === 2).length !== n) fail('hints did not finish the puzzle', mode, k);
+  maxSteps = Math.max(maxSteps, steps);
+});
+
+console.log(`${puzzles} puzzles solved with hints only: ${hints} hints, most for one puzzle ${maxSteps}, errors ${bad}`);
+console.log(Object.entries(tally).map(([k, v]) => `${k} ${v}`).join(', '));
 process.exit(bad ? 1 : 0);

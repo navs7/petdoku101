@@ -6,12 +6,13 @@
 // engine never loops.
 import { readFileSync } from 'node:fs';
 import { nextHint, applyHint } from '../public/js/hints.js';
+import { BANK_SETS } from '../public/js/puzzle.js';
 
 const bank = JSON.parse(readFileSync(new URL('../public/puzzles.json', import.meta.url), 'utf8'));
 const tally = {}; let puzzles = 0, hints = 0, bad = 0, maxSteps = 0;
 const fail = (msg, mode, k) => { bad++; console.error(`${msg} [${mode} ${k + 1}]`); };
 
-for (const mode of ['level', 'time']) bank[mode].forEach((e, k) => {
+for (const mode of BANK_SETS) bank[mode].forEach((e, k) => {
   const n = e.s, regions = [...e.r].map(Number), solution = [...e.c].map(Number), cells = new Array(n * n).fill(0);
   const isSol = (i) => solution[(i / n) | 0] === i % n;
   puzzles++;

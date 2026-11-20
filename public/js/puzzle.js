@@ -118,13 +118,21 @@ let bank;
 export async function getPuzzle(mode, level, cfg) {
   try {
     bank ||= fetch('puzzles.json').then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
-    const e = (await bank)[mode]?.[level - 1];
+    const e = (await bank)[mode === 'level' ? cfg.key : mode]?.[level - 1];
     if (e && e.s === cfg.size) return { size: e.s, regions: [...e.r].map(Number), solution: [...e.c].map(Number) };
   } catch { bank = null; }
   return generatePuzzle(cfg);
 }
 
-// ---- Daily schedule: level n (1..365) is fixed; the date picks n. ----
+// ---- Daily schedule: puzzle n (1..365) is fixed; the date picks n. ----
+// Score Attack: the player picks one of three levels each day. A harder board starts with more points.
+export const DIFFS = {
+  easy: { key: 'easy', name: 'Easy', size: 6, base: 300 },
+  moderate: { key: 'moderate', name: 'Moderate', size: 8, base: 550 },
+  hard: { key: 'hard', name: 'Hard', size: 10, base: 800 },
+};
+export const BANK_SETS = ['easy', 'moderate', 'hard', 'time']; // keys of public/puzzles.json
+// Old rotation (one fixed size per day). Only used to label results recorded before levels were selectable.
 export const TIERS = [
   { name: 'Cozy', size: 6, base: 300 },
   { name: 'Easy', size: 7, base: 400 },
@@ -134,8 +142,9 @@ export const TIERS = [
   { name: 'Hard', size: 10, base: 800 },
   { name: 'Fierce', size: 10, base: 900 },
 ];
-export function configFor(mode, level) {
-  if (mode === 'level') { const t = TIERS[(level - 1) % 7]; return { ...t, seed: `petdoku-v1-level-${level}` }; }
+export function configFor(mode, level, diff) {
+  if (mode === 'level' && DIFFS[diff]) return { ...DIFFS[diff], seed: `petdoku-v2-${diff}-${level}` };
+  if (mode === 'level') { const t = TIERS[(level - 1) % 7]; return { ...t, legacy: true, seed: `petdoku-v1-level-${level}` }; }
   return { name: 'Race', size: 6 + (level % 5), base: 0, seed: `petdoku-v1-time-${level}` };
 }
 

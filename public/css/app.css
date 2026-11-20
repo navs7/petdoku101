@@ -277,3 +277,28 @@ p { margin: 0; text-wrap: pretty; }
 .hl { letter-spacing: 1.5px; white-space: nowrap; font-size: 1.2em; line-height: 1; vertical-align: -1px; }
 .hl i { font-style: normal; color: var(--line); }
 .hl i.on { color: #D32F45; }
+
+/* Score Attack level picker + level pill in leaderboard rows */
+.lvl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; text-align: left; padding: 14px 18px; border-radius: 18px; background: var(--card); box-shadow: 0 0 0 1.5px var(--line), 0 3px 0 var(--line); border-left: 8px solid var(--sage); }
+.lvl:active { transform: translateY(2px); box-shadow: 0 0 0 1.5px var(--line), 0 1px 0 var(--line); }
+.lvl.moderate { border-left-color: #E3B93F; } .lvl.hard { border-left-color: #D32F45; }
+.lvl b { font: 800 1.25rem var(--display); }
+.lvl span { grid-row: 2; color: var(--ink2); font-size: .88rem; }
+.lvl em { grid-row: 1 / 3; grid-column: 2; font-style: normal; font: 700 .82rem var(--body); color: var(--ink2); }
+.lvt { font-style: normal; font-weight: 700; font-size: .72rem; padding: 1px 7px; border-radius: 99px; margin-right: 6px; white-space: nowrap; background: var(--sage-soft); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.lvt.moderate { background: color-mix(in oklab, #E3B93F 30%, var(--card)); }
+.lvt.hard { background: color-mix(in oklab, #D32F45 28%, var(--card)); }
+.lvt.old { background: var(--paper2); }
+
+/* three levels a day: solved row in the level list, level tabs on the leaderboard */
+.lvl.done { background: var(--paper2); }
+.lvl.done em { color: var(--ink); }
+.seg.lv { margin: -6px 0 12px; }
+
+/* leaderboard filter: one row of small chips (three Score Attack levels, Time Attack, all-time) */
+.filt { display: flex; gap: 5px; overflow-x: auto; margin: 10px -2px 12px; padding: 2px; scrollbar-width: none; }
+.filt::-webkit-scrollbar { display: none; }
+.filt button { flex: 1 0 auto; padding: 7px 10px; border-radius: 99px; font: 700 .8rem var(--body); color: var(--ink2); background: transparent; box-shadow: 0 0 0 1.5px var(--line); white-space: nowrap; }
+.filt button.time { margin-left: 4px; }
+.filt button[aria-selected="true"] { background: var(--ink); color: var(--paper); box-shadow: none; }
+.starnote { color: var(--ink2); font-size: .82rem; margin: -4px 0 8px; }

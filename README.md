@@ -7,9 +7,10 @@ Mobile-first logic puzzle in the style of Meowdoku / Queens. Place one pet in ev
 - exactly **one pet per colour region**, **one per row** and **one per column**
 - pets **can't touch**, not even diagonally
 - tap once for a white ✕ note (tap again to remove it); **double-tap to place a pet**. A right pet stays, a wrong one becomes a red ✕. Both are final; Undo and Clear only remove white ✕ notes
-- **Hint** shows the next single logical step on the board (cross out these squares, or the one square left for a pet) with an Apply button. It never guesses and never shows more than one pet. Crossing out around pets you already placed is free; other hints cost one hint per pet. `npm test` solves all 730 puzzles with hints alone to check every step is sound
+- **Hint** shows the next single logical step on the board (cross out these squares, or the one square left for a pet) with an Apply button. It never guesses and never shows more than one pet. Crossing out around pets you already placed is free; other hints cost 75 points in Score Attack or 30 seconds in Time Attack, charged at most once per pet. `npm test` solves all 730 puzzles with hints alone to check every step is sound
 - the back gesture/button steps back inside the app (game, sheet, tab) instead of leaving it
 - you have **3 lives**: each wrong pet costs one, and losing all three ends that game for the day (no leaderboard entry; past days can be retried as practice)
+- a seven-slide **how-to** opens on first launch: the three placement rules, three lives, tap controls, the two daily modes (Score Attack and Time Attack) and hints with their cost in each mode
 
 Everyone gets the same board each day.
 

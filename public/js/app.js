@@ -575,10 +575,10 @@ async function share(date) {
 // ---------------- how to play ----------------
 const DEMO = { reg: [0, 0, 1, 1, 0, 2, 1, 1, 2, 2, 3, 3, 2, 2, 3, 3], sol: [1, 3, 0, 2] }; // 4×4 teaching board
 const DEMO_PETS = DEMO.sol.map((c, r) => r * 4 + c);
-function mini({ pets = [], bad = [], dim = new Set() } = {}) {
+function mini({ pets = [], bad = [], dim = new Set(), ruled = [], out = [], target = -1 } = {}) {
   const icon = S.me?.avatar || 0;
   const cells = DEMO.reg.map((g, i) =>
-    `<div class="cell ${bad.includes(i) ? 'bad' : ''} ${dim.has(i) ? 'dim' : ''}" style="background:${COLORS[g]};--i:${i}">${bad.includes(i) ? RED_X : pets.includes(i) ? pet(icon) : ''}</div>`).join('');
+    `<div class="cell ${bad.includes(i) ? 'bad' : ''} ${dim.has(i) ? 'dim' : ''} ${out.includes(i) ? 'hv-out' : ''} ${i === target ? 'hv-target' : ''}" style="background:${COLORS[g]};--i:${i}">${bad.includes(i) ? RED_X : ruled.includes(i) ? RULED_X : pets.includes(i) || i === target ? pet(icon) : ''}</div>`).join('');
   return `<div class="board mini">${cells}</div>`;
 }
 const HOW = [
@@ -598,6 +598,13 @@ const HOW = [
     art: () => {
       const t = (inner) => `<div class="cell" style="background:${COLORS[0]}">${inner}</div>`;
       return `<div class="cycle">${t('')}<b>›</b>${t(X_SVG)}<b>2×</b>${t(pet(S.me?.avatar || 0))}</div>`;
+    } },
+  { t: 'Stuck? Ask for a hint', p: 'A hint shows the next logical step on the board: squares to cross out (green ✕) or the one square left for a pet. Tap Apply to do it. Crossing out around pets you have placed is free; other hints cost points or time, at most once per pet.',
+    art: () => {
+      // a pet at row 1, column 2 rules out its row, column, colour and every touching square
+      const p = 1, ruled = [];
+      for (let i = 0; i < 16; i++) if (i !== p && (((i / 4) | 0) === 0 || i % 4 === 1 || DEMO.reg[i] === DEMO.reg[p] || (Math.abs(((i / 4) | 0) - 0) <= 1 && Math.abs((i % 4) - 1) <= 1))) ruled.push(i);
+      return mini({ pets: [p], ruled, out: ruled });
     } },
 ];
 function howTo() {

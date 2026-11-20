@@ -65,6 +65,25 @@ results are rejected by the old rules.
 - **Hints** (`hints.js`): one logical step at a time — `cross` (free), `single`, `confine`, `block`, rare `reveal`.
   A hint never shows more than one pet and never guesses. Charged at most once per pet.
 
+## Screens (all in `app.js`)
+
+- **Home** (`home`): Score Attack card (progress "N of 3 solved", day's total points) opens the level list
+  (`pickLevel`); Time Attack card opens its game. `open(mode, date, diff)` routes to the result sheet,
+  the out-of-lives sheet or the board.
+- **Leaderboard** (`ranks`): one row of filter chips (`.filt`, `data-f`): Easy, Moderate, Hard, Time, All-time.
+  The three level chips set `S.rank.tab = 'level'` plus `S.rank.diff`. Date is chosen with arrows, a
+  swipeable day strip (up to 60 days) or the date button, which opens a month calendar (`pickDate`).
+  Lists come from `boardFor(date, mode, diff)`. Score Attack rows show solve time and hearts left;
+  Time Attack rows show hearts left and hints.
+- **Loading state** (`runner()`): pets hopping across a lane above an indeterminate bar. `load()` shows it
+  only if the fetch takes longer than 150 ms, and a token guards against stale responses. Static under
+  `prefers-reduced-motion`.
+- **Result sheet** (`resultSheet`): stars with a one-line explanation (`starNote`), hearts, three facts
+  (score or final time, solve time, hints used), rank, Share, See leaderboard, Other levels (Score Attack), Done.
+- **Share** (`shareText(date, mode, diff)`): one game per message. Score Attack without a `diff` (the home
+  card's share icon) produces a summary of the day's three levels with a total.
+- **How-to** (`HOW` slides): seven slides; update the "Two puzzles every day" and hint slides when modes or costs change.
+
 ## Storage
 
 localStorage (per browser):

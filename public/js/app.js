@@ -512,8 +512,9 @@ function gameOverSheet(mode, date, fromHome, practice) {
       ${hearts(0)}
       <p class="sub">${mode === 'level' ? 'Daily level' : 'Time attack'} ${levelFor(date)} · ${fmtDate(date)}</p>
       <p class="sub">${practice ? 'That was a practice run, so you can try again.' : 'You used all 3 lives, so today’s ' + (mode === 'level' ? 'level' : 'race') + ' is over for you. A new puzzle arrives at midnight.'}</p>
-      <div class="acts">${practice ? '<button class="btn" data-retry>Try again</button>' : ''}<button class="btn ghost" data-close data-home>Done</button></div></div>`);
+      <div class="acts">${practice ? '<button class="btn" data-retry>Try again</button>' : `<button class="btn" data-share>${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}Share result</button>`}<button class="btn ghost" data-close data-home>Done</button></div></div>`);
   s.addEventListener('click', (e) => {
+    if (e.target.closest('[data-share]')) share(date, mode);
     if (e.target.closest('[data-retry]')) { s.remove(); startGame(mode, date); }
     if (e.target.closest('[data-home]')) go('home');
   });

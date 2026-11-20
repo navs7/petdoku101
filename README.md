@@ -75,14 +75,24 @@ Players sign in anonymously, so anyone can talk to Firestore directly with their
   - a profile starts at zero and can only change its avatar, or its stats together with a new result (exactly that result's score, one more solve, streak up by at most one)
   - a result is create-only, only known fields with number types, only for the server's date give or take a day, and its score, adjusted time and rank key must be values the scoring formula can produce
 - **The app** rebuilds every record it reads for display from known, typed fields (`cleanEntry`, `cleanUser` in `backend.js`), so stored data can never reach the page as markup.
+- **App Check** (reCAPTCHA Enterprise) is enforced for Cloud Firestore, so only requests coming from the hosted sites are accepted; a direct call to the Firestore API without an App Check token gets 403. `startAppCheck` in `backend.js` starts it before Auth and Firestore, using the public site key in `public/js/firebase-config.js` (`appCheck`).
 
 ```powershell
 npm run test:rules   # needs Java 17+; downloads the Firestore emulator on first run
 ```
 
+### App Check setup (for your own project)
+
+1. Google Cloud console → reCAPTCHA: create a **Website**, score-based key for your hosting domains (here `petdoku101.web.app`, `petdoku-101.web.app`, `petdoku-101.firebaseapp.com`).
+2. Firebase console → App Check → Apps: register the web app with **reCAPTCHA Enterprise** and that key.
+3. Put the key in `appCheck.siteKey` in `public/js/firebase-config.js` and deploy.
+4. When App Check → APIs shows verified Firestore requests, click **Enforce** for Cloud Firestore. Enforcing before the deployed app sends tokens locks every player out.
+
+Local development against real Firebase (`npm run dev` without `?demo`) needs a debug token: the app turns on debug mode on localhost, the browser console prints a token, and you add it under App Check → Apps → Manage debug tokens. `?demo` mode needs nothing. Adding a new hosting domain means adding it to the reCAPTCHA key as well.
+
 ## Known limits
 
 - Scores are computed client-side and the solutions ship with the app, so a determined player can still submit a fake result, as long as it is one the formula could produce (for example a very fast clean solve). For competitive integrity, move result validation into a Cloud Function.
-- App Check is wired in but off until a reCAPTCHA site key is set in `public/js/firebase-config.js` (`appCheck.siteKey`) and enforcement is turned on for Firestore in the Firebase console. Until then scripts can use the project's quota. Enforcing App Check for Authentication itself needs the Identity Platform upgrade.
+- App Check is enforced for Cloud Firestore only. Scripts can still create empty anonymous accounts (they cannot read or write data); enforcing App Check on Authentication as well needs the Identity Platform upgrade.
 - Anonymous auth is tied to the browser. Clearing site data loses the account; add Google/email linking (`linkWithPopup`) if you need recovery.
 - Daily puzzle follows each player's local date, so players in different timezones see the new puzzle at their own midnight.

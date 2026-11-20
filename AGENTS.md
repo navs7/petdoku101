@@ -37,7 +37,7 @@ results are rejected by the old rules.
 | `public/js/hints.js` | Pure hint engine (`nextHint`, `applyHint`); no DOM so scripts can test it |
 | `public/js/backend.js` | Two backends with one interface: local demo (localStorage) and Firebase |
 | `public/js/pets.js` | SVG sprite for the nine animals |
-| `public/js/firebase-config.js` | Public web config (the API key is public by design; `firestore.rules` protects the data) |
+| `public/js/firebase-config.js` | Public web config and the App Check site key (both public by design; `firestore.rules` and App Check protect the data) |
 | `public/css/app.css` | All styles; colour tokens on `:root`, dark mode via `prefers-color-scheme` |
 | `public/puzzles.json` | Pre-built boards: `easy`, `moderate`, `hard`, `time`, 365 each (`BANK_SETS`) |
 | `scripts/build-puzzles.js` | Writes `puzzles.json` |
@@ -118,8 +118,15 @@ Sign-in is anonymous, so treat every Firestore document written by another playe
 - Profile stats only change in a batch with a new result; the profile's `lastGame` field names that result so the rules can check it.
 - Not solved: scores are client-computed and solutions ship in `puzzles.json`, so a plausible fake result is
   still possible.
-- App Check: `startAppCheck` in `backend.js` runs only when `appCheck.siteKey` is set in `firebase-config.js`.
-  Enforcement is a Firebase console switch; turn it on only after the deployed app is sending verified requests.
+- **App Check is enforced for Cloud Firestore** (reCAPTCHA Enterprise; public site key in `appCheck` in
+  `firebase-config.js`). `startAppCheck` in `backend.js` must run before Auth or Firestore are used; with an
+  empty `siteKey` it does nothing, which would now lock the app out of Firestore. Consequences:
+  - `npm run dev` without `?demo` reaches Firestore only with a registered debug token (the console prints one
+    on localhost; add it under App Check → Apps → Manage debug tokens). `?demo` and the emulator tests are unaffected.
+  - A new hosting domain must be added to the reCAPTCHA key's domain list, or that site cannot load data.
+  - Enforcement is a Firebase console switch (App Check → APIs). Authentication is not enforced (needs Identity Platform),
+    so empty anonymous accounts can still be created by scripts.
+  - To check it: a Firestore read through the app succeeds; `fetch` of the Firestore REST API without a token returns 403.
 
 ## Conventions
 

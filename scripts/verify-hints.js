@@ -12,7 +12,11 @@ const bank = JSON.parse(readFileSync(new URL('../public/puzzles.json', import.me
 const tally = {}; let puzzles = 0, hints = 0, bad = 0, maxSteps = 0;
 const fail = (msg, mode, k) => { bad++; console.error(`${msg} [${mode} ${k + 1}]`); };
 
-for (const mode of BANK_SETS) bank[mode].forEach((e, k) => {
+// every set, plus the "old" boards kept for days before graded levels (keyed by puzzle number)
+const sets = BANK_SETS.map((m) => [m, bank[m].map((e, k) => [k, e])]);
+for (const [m, byLevel] of Object.entries(bank.old || {})) sets.push(['old ' + m, Object.entries(byLevel).map(([lv, e]) => [lv - 1, e])]);
+
+for (const [mode, list] of sets) list.forEach(([k, e]) => {
   const n = e.s, regions = [...e.r].map(Number), solution = [...e.c].map(Number), cells = new Array(n * n).fill(0);
   const isSol = (i) => solution[(i / n) | 0] === i % n;
   puzzles++;

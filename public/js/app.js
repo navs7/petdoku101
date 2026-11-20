@@ -443,7 +443,7 @@ function startGame(mode, date, diff) {
   dropKind('game'); addLayer(() => { persist(); go(S.tab); }, 'game');
   app.innerHTML = `<div class="loader">${pet(S.me.avatar || 0)}</div>`;
   setTimeout(async () => {
-    const level = levelFor(date), cfg = configFor(mode, level, diff), p = await getPuzzle(mode, level, cfg), n = p.size;
+    const level = levelFor(date), cfg = configFor(mode, level, diff, date), p = await getPuzzle(mode, level, cfg), n = p.size;
     const sv = ls.get(gKey(mode, date, diff));
     const ok = sv && sv.cells?.length === n * n;
     G = {

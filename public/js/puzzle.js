@@ -1,6 +1,7 @@
 // Region puzzle engine ("queens" style): place N pets on an N×N board of N coloured regions.
 // Rules: exactly one pet in every row, column and region; no two pets touch (even diagonally).
 // Same (mode, level) -> same puzzle on every device, and every puzzle has a UNIQUE solution.
+import { gradePuzzle } from './grade.js';
 
 export function mulberry32(a) {
   return function () {
@@ -113,15 +114,43 @@ export function generatePuzzle({ size, seed }) {
   throw new Error('no unique puzzle found for ' + seed);
 }
 
+// ---- Difficulty bands (Score Attack levels) ----
+// A level is defined by the reasoning a board needs (see grade.js), not only by its size. miss() is 0
+// when the grade is inside the band, otherwise how far outside it is.
+//   easy      singles and one-colour-one-line steps only, a pet can be placed almost at once
+//   moderate  needs "a pet here would leave that colour with no square" steps, nothing deeper
+//   hard      needs two or three colours locked into as many lines, plus plenty of other steps
+// No band accepts a board the hint engine cannot finish by logic (a "reveal" step).
+const far = (x, lo, hi) => (x < lo ? lo - x : x > hi ? x - hi : 0);
+export const BANDS = {
+  easy: (g) => (g.tier > 1 ? 100 * g.tier : 0) + far(g.score, 0, 3) + far(g.opening, 0, 2),
+  moderate: (g) => (g.tier === 2 ? 0 : 100 * (1 + Math.abs(g.tier - 2))) + far(g.score, 6, 18),
+  hard: (g) => (g.tier === 3 || g.tier === 4 ? 0 : g.tier === 5 ? 1000 : 100 * (3 - g.tier)) + far(g.score, 20, 1e9),
+};
+export const GRADE_TRIES = 60;
+// Tries seeds "<seed>-0", "<seed>-1", ... and returns the first board inside the band (or, if none of
+// GRADE_TRIES is, the closest one). `only` builds just that attempt (the one stored in puzzles.json).
+export function generateGraded(cfg, only) {
+  const miss = BANDS[cfg.grade], one = Number.isInteger(only);
+  let best = null;
+  for (let a = one ? only : 0; a < GRADE_TRIES; a++) {
+    const p = generatePuzzle({ size: cfg.size, seed: `${cfg.seed}-${a}` }), g = gradePuzzle(p), m = miss(g);
+    if (!best || m < best.miss) best = { ...p, attempt: a, grade: g, miss: m };
+    if (!m || one) break;
+  }
+  return best;
+}
+export const buildPuzzle = (cfg) => (cfg.grade ? generateGraded(cfg) : generatePuzzle(cfg));
+
 // Prefer the pre-computed boards (public/puzzles.json); fall back to generating on the fly.
 let bank;
 export async function getPuzzle(mode, level, cfg) {
   try {
     bank ||= fetch('puzzles.json').then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
-    const e = (await bank)[mode === 'level' ? cfg.key : mode]?.[level - 1];
+    const b = await bank, e = cfg.old ? b.old?.[cfg.key]?.[level] : b[mode === 'level' ? cfg.key : mode]?.[level - 1];
     if (e && e.s === cfg.size) return { size: e.s, regions: [...e.r].map(Number), solution: [...e.c].map(Number) };
   } catch { bank = null; }
-  return generatePuzzle(cfg);
+  return buildPuzzle(cfg);
 }
 
 // ---- Daily schedule: puzzle n (1..365) is fixed; the date picks n. ----
@@ -142,8 +171,14 @@ export const TIERS = [
   { name: 'Hard', size: 10, base: 800 },
   { name: 'Fierce', size: 10, base: 900 },
 ];
-export function configFor(mode, level, diff) {
-  if (mode === 'level' && DIFFS[diff]) return { ...DIFFS[diff], seed: `petdoku-v2-${diff}-${level}` };
+// Boards graded by difficulty start on GRADED_FROM. Dates before it keep the ungraded v2 boards they were
+// played on (stored under "old" in puzzles.json). Callers that only need size or name may omit the date.
+export const GRADED_FROM = '2026-11-21';
+export function configFor(mode, level, diff, date) {
+  if (mode === 'level' && DIFFS[diff]) {
+    return date && date < GRADED_FROM ? { ...DIFFS[diff], old: true, seed: `petdoku-v2-${diff}-${level}` }
+      : { ...DIFFS[diff], grade: diff, seed: `petdoku-v3-${diff}-${level}` };
+  }
   if (mode === 'level') { const t = TIERS[(level - 1) % 7]; return { ...t, legacy: true, seed: `petdoku-v1-level-${level}` }; }
   return { name: 'Race', size: 6 + (level % 5), base: 0, seed: `petdoku-v1-time-${level}` };
 }

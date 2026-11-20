@@ -17,9 +17,9 @@ and column; pets may not touch, even diagonally. Every board has exactly one sol
 
 ```powershell
 npm run dev            # static server on http://localhost:5173 (add ?demo to use the offline localStorage backend)
-npm test               # verify-puzzles (about 5 minutes) then verify-hints (seconds)
+npm test               # verify-puzzles (about 11 minutes; add --full to the script to recheck every Hard board's earlier attempts) then verify-hints (seconds)
 npm run test:rules     # firestore.rules against the emulator (Java 17+, uses firebase-tools@13 via npx)
-npm run build:puzzles  # regenerate public/puzzles.json (several minutes; only when seeds or sizes change)
+npm run build:puzzles  # regenerate public/puzzles.json (several minutes on worker threads; only when seeds, sizes or difficulty bands change)
 firebase deploy --project petdoku-101 --only hosting                   # both sites
 firebase deploy --project petdoku-101 --only hosting,firestore:rules   # when firestore.rules changed
 ```
@@ -33,15 +33,16 @@ results are rejected by the old rules.
 |---|---|
 | `public/index.html` | Shell page; loads `js/app.js` |
 | `public/js/app.js` | All UI and game logic: screens, board, taps, hints UI, results, share, leaderboard, how-to |
-| `public/js/puzzle.js` | Seeded generator, solver, daily schedule (`levelFor`), level configs (`DIFFS`, `configFor`), scoring (`scoreFor`) |
+| `public/js/puzzle.js` | Seeded generator, solver, difficulty bands (`BANDS`, `generateGraded`), daily schedule (`levelFor`), level configs (`DIFFS`, `configFor`), scoring (`scoreFor`) |
+| `public/js/grade.js` | Difficulty grade of a board (`gradePuzzle`): solves it with the hint engine and counts the kinds of step needed; no DOM |
 | `public/js/hints.js` | Pure hint engine (`nextHint`, `applyHint`); no DOM so scripts can test it |
 | `public/js/backend.js` | Two backends with one interface: local demo (localStorage) and Firebase |
 | `public/js/pets.js` | SVG sprite for the nine animals |
 | `public/js/firebase-config.js` | Public web config and the App Check site key (both public by design; `firestore.rules` and App Check protect the data) |
 | `public/css/app.css` | All styles; colour tokens on `:root`, dark mode via `prefers-color-scheme` |
-| `public/puzzles.json` | Pre-built boards: `easy`, `moderate`, `hard`, `time`, 365 each (`BANK_SETS`) |
+| `public/puzzles.json` | Pre-built boards: `easy`, `moderate`, `hard`, `time`, 365 each (`BANK_SETS`); `old.<level>.<puzzle number>` holds the ungraded boards of 1 to 20 Nov 2026 |
 | `scripts/build-puzzles.js` | Writes `puzzles.json` |
-| `scripts/verify-puzzles.js` | Checks every stored board: size, unique solution, matches the seeded generator |
+| `scripts/verify-puzzles.js` | Checks every stored board: size, unique solution, matches the seeded generator, inside its difficulty band |
 | `scripts/verify-hints.js` | Solves every board using hints only; fails on any unsound step |
 | `scripts/verify-rules.js` | Allowed/denied cases for `firestore.rules`, run inside the Firestore emulator |
 | `firestore.rules` | Username registry, profiles, create-only daily results |
@@ -64,6 +65,11 @@ results are rejected by the old rules.
 - **Scoring** (`scoreFor`): Score Attack = base (300/550/800) + speed bonus up to 200 − 50 per wrong pet − 75 per hint, minimum 50.
   Time Attack = solve time + 15 s per wrong pet + 30 s per hint. Stars: Score Attack by wrong pets + hints (0 → 3, 1–2 → 2, else 1);
   Time Attack by adjusted time (under 1:30 → 3, under 4:00 → 2, else 1).
+- **Difficulty** (`grade.js`, `BANDS` in `puzzle.js`): a Score Attack level is defined by the reasoning its boards need, not only by size.
+  `gradePuzzle` plays the hint engine from an empty board and returns `tier` (hardest step kind used: single, c1, block, c2, c3, reveal),
+  `score` (weighted step count) and `opening` (steps before the first pet). Easy = tier ≤ c1, score ≤ 3, opening ≤ 2. Moderate = tier block,
+  score 6–18. Hard = tier c2 or c3, score ≥ 20. No band accepts a `reveal`. `generateGraded` tries seeds `<seed>-0`, `<seed>-1`, … (up to
+  `GRADE_TRIES`) and keeps the first board in the band; the attempt number is stored as `a` in `puzzles.json`. Time Attack is not graded.
 - **Hints** (`hints.js`): one logical step at a time — `cross` (free), `single`, `confine`, `block`, rare `reveal`.
   A hint never shows more than one pet and never guesses. Charged at most once per pet.
 
@@ -142,7 +148,11 @@ Sign-in is anonymous, so treat every Firestore document written by another playe
 ## Gotchas
 
 - **Never change a puzzle seed or size for a set that is live** — it changes boards for dates already played.
-  New sets get new seeds (`petdoku-v2-<diff>-<n>`); Time Attack still uses `petdoku-v1-time-<n>`.
+  New sets get new seeds. Score Attack levels use `petdoku-v3-<diff>-<n>-<attempt>` from `GRADED_FROM` (21 Nov 2026); earlier dates keep
+  `petdoku-v2-<diff>-<n>` (`configFor(mode, level, diff, date)` picks by date, so pass the date when the board itself matters);
+  Time Attack still uses `petdoku-v1-time-<n>`.
+- **Changing `hints.js` step logic, `grade.js` weights or `BANDS` changes which boards the graded generator picks**, which is the same as
+  changing live boards. If one of those must change, add a new seed version with a start date, as `GRADED_FROM` does.
 - After changing `puzzle.js` generation or configs, run `npm run build:puzzles` then `npm test`.
 - When patching files with a script, do not use `String.replace(str, replacement)` with replacement text that
   contains `$` (regex in `firestore.rules`, template literals in `app.js`): `$'` and `$&` are expanded.

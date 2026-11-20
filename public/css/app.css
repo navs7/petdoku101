@@ -118,6 +118,22 @@ p { margin: 0; text-wrap: pretty; }
 .datebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .datebar b { font-family: var(--display); font-size: 1.05rem; text-align: center; }
 .datebar small { display: block; font: 500 .8rem var(--body); color: var(--ink2); }
+.datebar .dpick { flex: 1; margin: 0 8px; min-height: 48px; padding: 4px 8px; border-radius: 14px; background: var(--card); box-shadow: 0 0 0 1.5px var(--line), 0 3px 0 var(--line); text-align: center; color: var(--ink); }
+.datebar .dpick:active { transform: translateY(2px); box-shadow: 0 0 0 1.5px var(--line), 0 1px 0 var(--line); }
+.datebar .dpick b { display: inline-flex; align-items: center; gap: 7px; }
+.datebar .dpick svg { width: 17px; height: 17px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.iconbtn[disabled] { opacity: .4; pointer-events: none; }
+.dstrip { position: relative; display: flex; gap: 6px; overflow-x: auto; padding: 3px 2px 12px; margin: 0 -2px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.dstrip::-webkit-scrollbar { display: none; }
+.dchip { flex: 0 0 50px; padding: 7px 0 6px; border-radius: 14px; background: var(--card); box-shadow: 0 0 0 1.5px var(--line); text-align: center; color: var(--ink2); }
+.dchip small { display: block; font: 600 .7rem var(--body); }
+.dchip b { display: block; font: 800 1.05rem var(--display); color: var(--ink); }
+.dchip.today { box-shadow: 0 0 0 2.5px var(--accent); }
+.dchip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: 0 3px 0 var(--accent-d); }
+.dchip[aria-pressed="true"] b { color: var(--accent-ink); }
+.datebar.pk { margin-top: 12px; }
+.dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font: 700 .72rem var(--body); color: var(--ink2); margin-bottom: 6px; }
+.day.sel { background: var(--accent); color: var(--accent-ink); box-shadow: 0 3px 0 var(--accent-d); }
 .rows { display: grid; gap: 8px; }
 .row { display: grid; grid-template-columns: 34px 46px 1fr auto; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 18px; background: var(--card); box-shadow: 0 0 0 1.5px var(--line); animation: in .4s var(--ease) backwards; }
 .row.me { box-shadow: 0 0 0 2.5px var(--accent); background: var(--accent-soft); }
@@ -245,3 +261,8 @@ p { margin: 0; text-wrap: pretty; }
 .mode .cshare:active { transform: translateY(2px); box-shadow: 0 0 0 1.5px var(--line), 0 1px 0 var(--line); }
 .mode .cshare:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .mode.has-share .score { right: 68px; bottom: 19px; }
+
+/* hearts left, inline in a leaderboard row */
+.hl { letter-spacing: 1.5px; white-space: nowrap; font-size: 1.2em; line-height: 1; vertical-align: -1px; }
+.hl i { font-style: normal; color: var(--line); }
+.hl i.on { color: #D32F45; }

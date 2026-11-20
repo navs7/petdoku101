@@ -35,6 +35,8 @@ const hist = () => ls.get('purr:hist:' + (S.me?.uid || ''), {});
 const saveHist = (h) => ls.set('purr:hist:' + (S.me?.uid || ''), h);
 const LIVES = 3;
 const hearts = (left) => `<div class="lives" aria-label="${left} of ${LIVES} lives left">${[...Array(LIVES)].map((_, k) => `<i class="${k < left ? 'on' : ''}">♥</i>`).join('')}</div>`;
+// small inline hearts (leaderboard rows): lives left after `mistakes` wrong guesses
+const heartsLeft = (mistakes) => { const left = Math.max(0, LIVES - (mistakes || 0)); return `<span class="hl" role="img" aria-label="${left} of ${LIVES} lives left">${[...Array(LIVES)].map((_, k) => `<i class="${k < left ? 'on' : ''}">♥</i>`).join('')}</span>`; };
 const lostKey = (mode, date) => `purr:lost:${S.me.uid}:${mode}:${date}`;
 const gKey = (mode, date) => `purr:g2:${S.me.uid}:${mode}:${date}`;
 const fmtDate = (k, o = { weekday: 'short', day: 'numeric', month: 'short' }) => parseKey(k).toLocaleDateString(undefined, o);
@@ -252,7 +254,24 @@ function ranks() {
       const load = async () => {
         const db = $('#db'), rows = $('#rows'), mine = S.me.uid, token = (load.t = (load.t || 0) + 1);
         if (R.tab === 'season') db.innerHTML = '<p class="sub">Total points from every ranked puzzle.</p>';
-        else db.innerHTML = `<div class="datebar"><button class="iconbtn" data-dd="-1" aria-label="Previous day">${ico(I.back)}</button><b>${R.date === S.today ? 'Today' : fmtDate(R.date)}<small>Puzzle ${levelFor(R.date)} · ${R.tab === 'level' ? 'ranked by score' : 'ranked by time'}</small></b><button class="iconbtn" data-dd="1" aria-label="Next day" ${R.date >= S.today ? 'disabled' : ''}>${ico(I.fwd)}</button></div>`;
+        else {
+          // Three ways to move: arrows (one day), the day strip (recent days, swipe sideways), and the
+          // date button, which opens a month calendar for anything older.
+          const min = rankMin(); if (R.date < min) R.date = min; if (R.date > S.today) R.date = S.today;
+          const end = addDays(R.date, 30) < S.today ? addDays(R.date, 30) : S.today;
+          let start = addDays(end, -59); if (start < min) start = min;
+          let chips = '';
+          for (let k = start; k <= end; k = addDays(k, 1)) {
+            const dt = parseKey(k);
+            chips += `<button class="dchip ${k === S.today ? 'today' : ''}" data-day="${k}" aria-pressed="${k === R.date}" aria-label="${fmtDate(k)}"><small>${dt.getDate() === 1 || k === start ? fmtDate(k, { month: 'short' }) : fmtDate(k, { weekday: 'short' })}</small><b>${dt.getDate()}</b></button>`;
+          }
+          db.innerHTML = `<div class="datebar"><button class="iconbtn" data-dd="-1" aria-label="Previous day" ${R.date <= min ? 'disabled' : ''}>${ico(I.back)}</button>
+            <button class="dpick" data-pick aria-label="Pick a date"><b>${ico(I.cal)}${R.date === S.today ? 'Today' : fmtDate(R.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</b><small>Puzzle ${levelFor(R.date)} · ${R.tab === 'level' ? 'ranked by score' : 'ranked by time'}</small></button>
+            <button class="iconbtn" data-dd="1" aria-label="Next day" ${R.date >= S.today ? 'disabled' : ''}>${ico(I.fwd)}</button></div>
+            <div class="dstrip" id="ds">${chips}</div>`;
+          const ds = $('#ds'), on = $('[aria-pressed="true"]', ds);
+          if (on) ds.scrollLeft = on.offsetLeft - (ds.clientWidth - on.offsetWidth) / 2;
+        }
         let list = [];
         try { list = R.tab === 'season' ? await S.be.season() : await S.be.board(`${R.date}_${R.tab}`); }
         catch (e) { console.error(e); rows.innerHTML = `<div class="empty">Could not load the board.</div>`; return; }
@@ -260,7 +279,7 @@ function ranks() {
         if (!list.length) { rows.innerHTML = `<div class="empty">${pet(4)}<p>No one has finished yet.<br>Be the first on the board.</p></div>`; return; }
         rows.innerHTML = list.map((u, i) => {
           const val = R.tab === 'season' ? `${u.totalPoints}` : R.tab === 'level' ? `${u.score}` : fmtTime(u.adj);
-          const sub = R.tab === 'season' ? `${u.solved || 0} solved · ${u.streak || 0} day streak` : R.tab === 'level' ? `${fmtTime(u.ms)} · ${u.mistakes} slips` : `${u.mistakes} slips · ${u.hints} hints`;
+          const sub = R.tab === 'season' ? `${u.solved || 0} solved · ${u.streak || 0} day streak` : R.tab === 'level' ? `${fmtTime(u.ms)} · ${heartsLeft(u.mistakes)}` : `${heartsLeft(u.mistakes)} · ${u.hints || 0} ${u.hints === 1 ? 'hint' : 'hints'}`;
           return `<div class="row ${u.uid === mine ? 'me' : ''}" style="animation-delay:${i * 30}ms"><span class="rk">${i + 1}</span>${pet(u.avatar || 0)}<span class="nm">@${esc(u.username)}<small>${sub}</small></span><span class="val">${val}</span></div>`;
         }).join('');
       };
@@ -268,12 +287,46 @@ function ranks() {
         const t = e.target.closest('[data-t]'), d = e.target.closest('[data-dd]');
         if (t) { R.tab = t.dataset.t; $$('[data-t]', el).forEach((b) => b.setAttribute('aria-selected', b === t)); load(); }
         if (d && !d.disabled) { R.date = addDays(R.date, +d.dataset.dd); load(); }
+        const day = e.target.closest('[data-day]');
+        if (day && day.dataset.day !== R.date) { R.date = day.dataset.day; load(); }
+        if (e.target.closest('[data-pick]')) pickDate(R.date, (k) => { R.date = k; load(); });
       });
       load();
     },
   };
 }
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+// First day that has a leaderboard (the calendar's first day; today if the app is opened before it).
+function rankMin() { const k = dateKey(new Date(CAL_START[0], CAL_START[1], 1)); return k < S.today ? k : S.today; }
+// Month calendar in a sheet for jumping straight to any past day's board.
+function pickDate(sel, onPick) {
+  const min = rankMin(), H = hist(), ym = (k) => k.slice(0, 7);
+  let y = parseKey(sel).getFullYear(), m = parseKey(sel).getMonth();
+  const dow = [...Array(7)].map((_, i) => `<span>${new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'narrow' })}</span>`).join('');
+  const s = sheet(`<h2>Pick a day</h2>
+    <div class="datebar pk"><button class="iconbtn" data-pm="-1" aria-label="Previous month">${ico(I.back)}</button><b id="pkm"></b><button class="iconbtn" data-pm="1" aria-label="Next month">${ico(I.fwd)}</button></div>
+    <div class="dow">${dow}</div><div class="mgrid" id="pkg"></div>
+    <div class="legend"><span><em style="background:var(--accent)"></em>You played Level</span><span><em style="background:var(--sage)"></em>You played Time</span></div>
+    <button class="btn ghost block" data-pk="${S.today}" style="margin-top:16px">Jump to today</button>`);
+  const draw = () => {
+    const n = new Date(y, m + 1, 0).getDate(), off = (new Date(y, m, 1).getDay() + 6) % 7, cur = dateKey(new Date(y, m, 1));
+    let cells = '<span></span>'.repeat(off);
+    for (let d = 1; d <= n; d++) {
+      const k = dateKey(new Date(y, m, d)), r = H[k] || {};
+      cells += `<button class="day ${k === S.today ? 'today' : ''} ${k > S.today || k < min ? 'future' : ''} ${k === sel ? 'sel' : ''}" data-pk="${k}" aria-label="${fmtDate(k)}">${d}<i><em class="l ${r.level ? 'on' : ''}"></em><em class="t ${r.time ? 'on' : ''}"></em></i></button>`;
+    }
+    $('#pkg', s).innerHTML = cells;
+    $('#pkm', s).textContent = new Date(y, m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    $('[data-pm="-1"]', s).disabled = ym(cur) <= ym(min);
+    $('[data-pm="1"]', s).disabled = ym(cur) >= ym(S.today);
+  };
+  s.addEventListener('click', (e) => {
+    const pm = e.target.closest('[data-pm]'), d = e.target.closest('[data-pk]');
+    if (pm && !pm.disabled) { m += +pm.dataset.pm; if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; } draw(); }
+    if (d) { s.remove(); onPick(d.dataset.pk); }
+  });
+  draw();
+}
 
 // ---------------- profile ----------------
 function me() {
@@ -562,15 +615,22 @@ async function resultSheet(mode, date, d, fromHome) {
     } catch { /* offline */ }
   }
 }
-// Text for one mode's result (each mode is shared on its own).
+// Text for one mode's result (each mode is shared on its own). Plain text + emoji so it reads well in any chat app.
 function shareText(date, mode) {
-  const d = (hist()[date] || {})[mode], lv = levelFor(date), paws = (n) => '🐾'.repeat(n);
-  const name = mode === 'level' ? 'Daily level' : 'Time attack';
-  const l = ['🐾 Petdoku #' + lv + ' · ' + name + ' · ' + fmtDate(date)];
-  if (d && mode === 'level') l.push(paws(d.stars) + '  ' + d.score + ' pts · ' + fmtTime(d.ms) + ' · ' + '♥'.repeat(Math.max(0, LIVES - d.mistakes)) + '♡'.repeat(Math.min(LIVES, d.mistakes)));
-  else if (d) l.push(paws(d.stars) + '  ' + fmtTime(d.adj) + ' · ' + '♥'.repeat(Math.max(0, LIVES - d.mistakes)) + '♡'.repeat(Math.min(LIVES, d.mistakes)));
-  else if (ls.get(lostKey(mode, date))) l.push('✕ Out of lives ' + '♡'.repeat(LIVES));
-  else l.push('Not solved yet…');
+  const d = (hist()[date] || {})[mode], lv = levelFor(date), c = configFor(mode, lv);
+  const lives = (m) => '❤️'.repeat(Math.max(0, LIVES - m)) + '🤍'.repeat(Math.min(LIVES, m));
+  const stars = (n) => '⭐'.repeat(n) + '☆'.repeat(Math.max(0, 3 - n));
+  const hints = (n) => '💡 ' + (n ? n + (n === 1 ? ' hint' : ' hints') : 'No hints');
+  const l = ['🐾 Petdoku #' + lv + ' · ' + fmtDate(date),
+    (mode === 'level' ? '🎯 Daily level · ' + c.name + ' ' : '⚡ Time attack · ') + c.size + '×' + c.size + (d?.practice ? ' · practice' : ''), ''];
+  if (d) {
+    const perfect = !d.mistakes && !d.hints;
+    l.push(stars(d.stars) + '  ' + (mode === 'level' ? d.score + ' pts' : fmtTime(d.adj)) + (perfect ? '  ✨ Perfect run' : ''));
+    if (mode === 'level') l.push('⏱️ ' + fmtTime(d.ms) + '   ' + lives(d.mistakes) + '   ' + hints(d.hints));
+    else l.push(lives(d.mistakes) + '   ' + hints(d.hints) + (d.adj > d.ms ? '   ⏱️ ' + fmtTime(d.ms) + ' + ' + fmtTime(d.adj - d.ms) + ' penalty' : ''));
+    l.push('', 'Can you beat ' + (mode === 'level' ? 'my score' : 'my time') + '?');
+  } else if (ls.get(lostKey(mode, date))) l.push('💔 Out of lives  ' + lives(LIVES), '', 'Think you can do better?');
+  else l.push('Not solved yet…', '', 'Play today’s puzzle:');
   l.push(location.origin + '/');
   return l.join('\n');
 }

@@ -722,10 +722,36 @@ function shareText(date, mode, diff) {
   l.push(location.origin + '/');
   return l.join('\n');
 }
+// Copies text to the clipboard. Falls back to a hidden textarea where the async clipboard API is
+// missing or refused (older browsers, some in-app browsers). Returns whether it worked.
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* try the old way */ }
+  try {
+    const t = document.createElement('textarea');
+    t.value = text; t.setAttribute('readonly', ''); t.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.append(t); t.select(); t.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy'); t.remove(); return ok;
+  } catch { return false; }
+}
+// Sharing: the message is copied to the clipboard straight away (the tap that opened this counts as the
+// permission), then a sheet shows the message with "Share via…" (the phone's own share menu, where
+// there is one) and "Copy message" to copy it again.
 async function share(date, mode, diff) {
-  const text = shareText(date, mode, diff);
-  try { if (navigator.share) return await navigator.share({ text }); } catch (e) { if (e.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text); toast('Copied. Paste it anywhere!'); } catch { prompt('Copy your result:', text); }
+  const text = shareText(date, mode, diff), native = typeof navigator.share === 'function';
+  const note = (ok) => (ok ? '✓ Copied to your clipboard. Paste it anywhere.' : 'Could not copy automatically. Tap Copy message, or select the text below.');
+  const copied = await copyText(text);
+  const s = sheet(`<h2>Share result</h2>
+    <p class="sub copynote ${copied ? 'ok' : ''}" id="cpn" role="status">${note(copied)}</p>
+    <pre class="sharebox" tabindex="0">${esc(text)}</pre>
+    <div class="acts">${native ? `<button class="btn" data-native>${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}Share via…</button>` : ''}
+      <button class="btn ${native ? 'ghost' : ''}" data-copy>Copy message</button><button class="btn ghost" data-close>Close</button></div>`);
+  s.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-copy]')) {
+      const ok = await copyText(text), n = $('#cpn', s);
+      n.textContent = note(ok); n.classList.toggle('ok', ok); if (ok) toast('Copied to clipboard');
+    }
+    if (e.target.closest('[data-native]')) { try { await navigator.share({ text }); } catch { /* cancelled or unavailable; the message is already copied */ } }
+  });
 }
 
 // ---------------- how to play ----------------

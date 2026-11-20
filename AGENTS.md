@@ -82,7 +82,8 @@ results are rejected by the old rules.
   `prefers-reduced-motion`.
 - **Result sheet** (`resultSheet`): stars with a one-line explanation (`starNote`), hearts, three facts
   (score or final time, solve time, hints used), rank, Share, See leaderboard, Other levels (Score Attack), Done.
-- **Share** (`shareText(date, mode, diff)`): one game per message. Score Attack without a `diff` (the home
+- **Share** (`share` → `copyText` + sheet; `shareText(date, mode, diff)` builds the text): the message is copied to the
+  clipboard on tap, then a sheet shows it with Share via… (only where `navigator.share` exists) and Copy message. One game per message. Score Attack without a `diff` (the home
   card's share icon) produces a summary of the day's three levels with a total.
 - **How-to** (`HOW` slides): seven slides; update the "Two puzzles every day" and hint slides when modes or costs change.
 

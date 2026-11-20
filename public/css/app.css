@@ -318,3 +318,7 @@ p { margin: 0; text-wrap: pretty; }
   .runner .lane svg, .runner .bar i { animation: none !important; }
   .runner .bar i { width: 100%; opacity: .5; }
 }
+
+/* share sheet: the message as it will be pasted, and whether it was copied */
+.sharebox { margin: 10px 0 2px; padding: 14px; border-radius: 16px; background: var(--card); box-shadow: 0 0 0 1.5px var(--line); font: 500 .9rem/1.5 var(--body); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; max-height: 38dvh; overflow: auto; }
+.copynote.ok { color: var(--sage); font-weight: 700; }

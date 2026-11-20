@@ -670,7 +670,9 @@ const HOW = [
       const t = (inner) => `<div class="cell" style="background:${COLORS[0]}">${inner}</div>`;
       return `<div class="cycle">${t('')}<b>›</b>${t(X_SVG)}<b>2×</b>${t(pet(S.me?.avatar || 0))}</div>`;
     } },
-  { t: 'Stuck? Ask for a hint', p: 'A hint shows the next logical step on the board: squares to cross out (green ✕) or the one square left for a pet. Tap Apply to do it. Crossing out around pets you have placed is free; other hints cost points or time, at most once per pet.',
+  { t: 'Two puzzles every day', p: '<b>Score Attack</b>: take your time. Slips and hints lower your score, and the highest score wins. <b>Time Attack</b>: race the clock. Slips and hints add seconds, and the fastest time wins. Each has its own leaderboard.',
+    art: () => `<div class="modes2"><div class="m level">${pet(5)}<b>Score Attack</b><span>850 pts</span></div><div class="m time">${pet(3)}<b>Time Attack</b><span>1:45</span></div></div>` },
+  { t: 'Stuck? Ask for a hint', p: 'A hint shows the next logical step on the board: squares to cross out (green ✕) or the one square left for a pet. Tap Apply to do it. Crossing out around pets you have placed is free; other hints cost 75 points in Score Attack or 30 seconds in Time Attack, at most once per pet.',
     art: () => {
       // a pet at row 1, column 2 rules out its row, column, colour and every touching square
       const p = 1, ruled = [];

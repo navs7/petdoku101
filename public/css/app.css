@@ -196,6 +196,12 @@ p { margin: 0; text-wrap: pretty; }
 .board.mini { --n: 4; --gap: 3px; width: 100%; min-width: 0; padding: 5px; }
 .mini .cell .cat { animation: pop .5s var(--ease) backwards; animation-delay: calc(var(--i) * 50ms + .15s); }
 .cell.dim { opacity: .3; }
+.modes2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: min(100%, 320px); }
+.modes2 .m { border-radius: 20px; padding: 16px 8px 14px; display: grid; justify-items: center; gap: 4px; box-shadow: 0 0 0 1.5px var(--line); }
+.modes2 .m.level { background: var(--accent-soft); } .modes2 .m.time { background: var(--sage-soft); }
+.modes2 .m svg { width: 64px; height: 64px; }
+.modes2 .m b { font: 800 1rem var(--display); }
+.modes2 .m span { font: 700 .95rem var(--mono); color: var(--ink2); }
 .cycle { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .cycle .cell { width: 24vw; max-width: 92px; aspect-ratio: 1; border-radius: 14px; } .cycle b { font-size: 1.8rem; color: var(--ink2); }
 .dots { display: flex; gap: 8px; margin: 12px 0 18px; } .dots i { width: 8px; height: 8px; border-radius: 99px; background: var(--line); transition: .3s var(--ease); } .dots i.on { background: var(--accent); width: 24px; }

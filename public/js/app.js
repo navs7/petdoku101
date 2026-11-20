@@ -12,6 +12,7 @@ const I = {
   cal: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',
   trophy: '<path d="M8 4h8v6a4 4 0 0 1-8 0zM8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 14v4M8 21h8"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+  grid: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
   back: '<path d="M15 5l-7 7 7 7"/>', fwd: '<path d="M9 5l7 7-7 7"/>',
   pause: '<path d="M8 5v14M16 5v14"/>', play: '<path d="M7 4l13 8-13 8z"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
@@ -176,7 +177,7 @@ function home() {
       <div class="pile">${pet(mode === 'level' ? 5 : 0)}${pet(mode === 'level' ? 0 : 3)}${pet(mode === 'level' ? 7 : 8)}</div>
       <span class="go">${d ? 'Solved' : lost ? 'Out of lives' : saved ? 'Resume' : 'Play'} ${ico(d ? I.star : I.play, 'width="14" height="14" fill="currentColor"')}</span>
       ${d ? `<span class="score">${mode === 'level' ? d.score + ' pts' : fmtTime(d.adj)}</span>` : ''}
-      ${d || lost ? `<span class="cshare" role="button" tabindex="0" data-share-mode="${mode}" aria-label="Share ${mode === 'level' ? 'daily level' : 'time attack'} result">${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}</span>` : ''}</button>`;
+      ${d || lost ? `<span class="cshare" role="button" tabindex="0" data-share-mode="${mode}" aria-label="Share ${mode === 'level' ? 'Score Attack' : 'Time Attack'} result">${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}</span>` : ''}</button>`;
   };
   const days = [...Array(7)].map((_, i) => addDays(t, i - 6));
   const H = hist();
@@ -185,8 +186,8 @@ function home() {
         <div class="chips"><span class="chip" title="Day streak">${ico(I.flame)}${S.me.streak || 0}</span></div></div>
       <div class="hello"><small>${fmtDate(t, { weekday: 'long', day: 'numeric', month: 'long' })} · Puzzle ${lv} of 365</small><h1>Hi, @${esc(S.me.username)}</h1></div>
       <div class="cards">
-        ${card('level', lc, `Daily level · ${lc.size}×${lc.size}`, lc.name, 'Fewest slips, best score.')}
-        ${card('time', tc, `Time attack · ${tc.size}×${tc.size}`, 'Race', 'Fastest clock wins.')}
+        ${card('level', lc, `Today · ${lc.size}×${lc.size} · ${lc.name}`, 'Score Attack', 'Highest score wins.')}
+        ${card('time', tc, `Today · ${tc.size}×${tc.size}`, 'Time Attack', 'Fastest time wins.')}
       </div>
       <div class="sec"><h3>This week</h3><span>${S.me.totalPoints || 0} pts all-time</span></div>
       <div class="week">${days.map((d) => `<div class="wd ${d === t ? 'today' : ''}">${fmtDate(d, { weekday: 'short' })}<b>${parseKey(d).getDate()}</b><i><em class="l ${H[d]?.level ? 'on' : ''}"></em><em class="t ${H[d]?.time ? 'on' : ''}"></em></i></div>`).join('')}</div>
@@ -228,12 +229,12 @@ function cal() {
   }
   return {
     html: `<h1 class="title">Calendar</h1><p class="sub">A new puzzle every day since 1 November 2026. Tap a past day to practise it.</p>
-      <div class="legend"><span><em style="background:var(--accent)"></em>Level</span><span><em style="background:var(--sage)"></em>Time</span></div>${out}`,
+      <div class="legend"><span><em style="background:var(--accent)"></em>Score Attack</span><span><em style="background:var(--sage)"></em>Time Attack</span></div>${out}`,
     bind(el) {
       el.addEventListener('click', (e) => {
         const b = e.target.closest('[data-d]'); if (!b) return;
         const k = b.dataset.d, lv = levelFor(k), r = hist()[k] || {}, past = k < S.today;
-        const row = (mode, c) => `<button class="btn ${r[mode] ? 'ghost' : ''}" data-m="${mode}">${mode === 'level' ? `Level · ${c.name} ${c.size}×${c.size}` : `Time attack · ${configFor('time', lv).size}×${configFor('time', lv).size}`}${r[mode] ? ' · view' : ''}</button>`;
+        const row = (mode, c) => `<button class="btn ${r[mode] ? 'ghost' : ''}" data-m="${mode}">${mode === 'level' ? `Score Attack · ${c.name} ${c.size}×${c.size}` : `Time Attack · ${configFor('time', lv).size}×${configFor('time', lv).size}`}${r[mode] ? ' · view' : ''}</button>`;
         const s = sheet(`<h2>${fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
           <p class="sub">Puzzle ${lv} of 365${past ? ' · practice run, not ranked' : ''}</p>
           <div class="pick">${row('level', configFor('level', lv))}${row('time', configFor('time', lv))}</div>`);
@@ -248,7 +249,7 @@ function ranks() {
   const R = S.rank;
   return {
     html: `<h1 class="title">Leaderboard</h1>
-      <div class="seg" role="tablist">${[['level', 'Level'], ['time', 'Time'], ['season', 'All-time']].map(([k, l]) => `<button role="tab" data-t="${k}" aria-selected="${R.tab === k}">${l}</button>`).join('')}</div>
+      <div class="seg" role="tablist">${[['level', 'Score'], ['time', 'Time'], ['season', 'All-time']].map(([k, l]) => `<button role="tab" data-t="${k}" aria-selected="${R.tab === k}">${l}</button>`).join('')}</div>
       <div id="db"></div><div class="rows" id="rows"><div class="empty">${pet(2)}Loading…</div></div>`,
     bind(el) {
       const load = async () => {
@@ -260,14 +261,16 @@ function ranks() {
           const min = rankMin(); if (R.date < min) R.date = min; if (R.date > S.today) R.date = S.today;
           const end = addDays(R.date, 30) < S.today ? addDays(R.date, 30) : S.today;
           let start = addDays(end, -59); if (start < min) start = min;
+          const cfg = configFor(R.tab, levelFor(R.date)); // the board everyone on this list solved
           let chips = '';
           for (let k = start; k <= end; k = addDays(k, 1)) {
             const dt = parseKey(k);
             chips += `<button class="dchip ${k === S.today ? 'today' : ''}" data-day="${k}" aria-pressed="${k === R.date}" aria-label="${fmtDate(k)}"><small>${dt.getDate() === 1 || k === start ? fmtDate(k, { month: 'short' }) : fmtDate(k, { weekday: 'short' })}</small><b>${dt.getDate()}</b></button>`;
           }
           db.innerHTML = `<div class="datebar"><button class="iconbtn" data-dd="-1" aria-label="Previous day" ${R.date <= min ? 'disabled' : ''}>${ico(I.back)}</button>
-            <button class="dpick" data-pick aria-label="Pick a date"><b>${ico(I.cal)}${R.date === S.today ? 'Today' : fmtDate(R.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</b><small>Puzzle ${levelFor(R.date)} · ${R.tab === 'level' ? 'ranked by score' : 'ranked by time'}</small></button>
+            <button class="dpick" data-pick aria-label="Pick a date"><b>${ico(I.cal)}${R.date === S.today ? 'Today' : fmtDate(R.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</b><small>Puzzle ${levelFor(R.date)} · ${R.tab === 'level' ? 'by score' : 'by time'}</small></button>
             <button class="iconbtn" data-dd="1" aria-label="Next day" ${R.date >= S.today ? 'disabled' : ''}>${ico(I.fwd)}</button></div>
+            <div class="bsize">${ico(I.grid)}<b>${cfg.size}×${cfg.size} board</b>${R.tab === 'level' ? `<span>${cfg.name}</span>` : ''}</div>
             <div class="dstrip" id="ds">${chips}</div>`;
           const ds = $('#ds'), on = $('[aria-pressed="true"]', ds);
           if (on) ds.scrollLeft = on.offsetLeft - (ds.clientWidth - on.offsetWidth) / 2;
@@ -306,7 +309,7 @@ function pickDate(sel, onPick) {
   const s = sheet(`<h2>Pick a day</h2>
     <div class="datebar pk"><button class="iconbtn" data-pm="-1" aria-label="Previous month">${ico(I.back)}</button><b id="pkm"></b><button class="iconbtn" data-pm="1" aria-label="Next month">${ico(I.fwd)}</button></div>
     <div class="dow">${dow}</div><div class="mgrid" id="pkg"></div>
-    <div class="legend"><span><em style="background:var(--accent)"></em>You played Level</span><span><em style="background:var(--sage)"></em>You played Time</span></div>
+    <div class="legend"><span><em style="background:var(--accent)"></em>Score Attack played</span><span><em style="background:var(--sage)"></em>Time Attack played</span></div>
     <button class="btn ghost block" data-pk="${S.today}" style="margin-top:16px">Jump to today</button>`);
   const draw = () => {
     const n = new Date(y, m + 1, 0).getDate(), off = (new Date(y, m, 1).getDay() + 6) % 7, cur = dateKey(new Date(y, m, 1));
@@ -401,7 +404,7 @@ function renderGame() {
   const { cfg, mode, n } = G;
   app.innerHTML = `<main class="play">
     <div class="bar"><button class="iconbtn" data-act="back" aria-label="Back">${ico(I.back)}</button>
-      <h2>${mode === 'level' ? 'Daily level ' + G.level : 'Time attack ' + G.level}<small>${cfg.name} · ${n}×${n}${G.practice ? ' · practice' : ''}</small></h2>
+      <h2>${mode === 'level' ? 'Score Attack' : 'Time Attack'}<small>Puzzle ${G.level} · ${mode === 'level' ? cfg.name + ' · ' : ''}${n}×${n}${G.practice ? ' · practice' : ''}</small></h2>
       <div class="timer"><span id="tm">${fmtTime(G.ms)}</span><button class="iconbtn" data-act="pause" aria-label="Pause">${ico(I.pause)}</button></div></div>
     <div class="stat-row" id="st"></div>
     <div class="hintmsg" id="hm" hidden></div>
@@ -563,7 +566,7 @@ function gameOverSheet(mode, date, fromHome, practice) {
   const s = sheet(`<div class="win">
       ${pet(S.me.avatar || 0, 'win-cat')}<h2>Out of lives</h2>
       ${hearts(0)}
-      <p class="sub">${mode === 'level' ? 'Daily level' : 'Time attack'} ${levelFor(date)} · ${fmtDate(date)}</p>
+      <p class="sub">${mode === 'level' ? 'Score Attack' : 'Time Attack'} · Puzzle ${levelFor(date)} · ${fmtDate(date)}</p>
       <p class="sub">${practice ? 'That was a practice run, so you can try again.' : 'You used all 3 lives, so today’s ' + (mode === 'level' ? 'level' : 'race') + ' is over for you. A new puzzle arrives at midnight.'}</p>
       <div class="acts">${practice ? '<button class="btn" data-retry>Try again</button>' : `<button class="btn" data-share>${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}Share result</button>`}<button class="btn ghost" data-close data-home>Done</button></div></div>`);
   s.addEventListener('click', (e) => {
@@ -598,7 +601,7 @@ async function resultSheet(mode, date, d, fromHome) {
       ${pet(S.me.avatar || 0, 'win-cat')}<h2>${fromHome ? 'Already solved' : 'Purr-fect!'}</h2>
       <div class="stars">${[1, 2, 3].map((n) => ico(I.star, `class="${n <= d.stars ? 'on' : ''}" style="animation-delay:${n * 120}ms"`)).join('')}</div>
       ${hearts(Math.max(0, LIVES - d.mistakes))}
-      <p class="sub">${mode === 'level' ? 'Daily level' : 'Time attack'} ${d.level} · ${fmtDate(date)}${ranked ? '' : ' · practice'}</p>
+      <p class="sub">${mode === 'level' ? 'Score Attack' : 'Time Attack'} · Puzzle ${d.level} · ${fmtDate(date)}${ranked ? '' : ' · practice'}</p>
       <div class="facts"><div><b>${mode === 'level' ? d.score : fmtTime(d.adj)}</b><span>${mode === 'level' ? 'points' : 'final time'}</span></div><div><b>${fmtTime(d.ms)}</b><span>solve time</span></div><div><b>${d.mistakes}/${d.hints}</b><span>slips / hints</span></div></div>
       <p class="sub" id="rk">${ranked ? 'Checking your rank…' : ''}</p>
       <div class="acts"><button class="btn" data-share>${ico(I.share, 'width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')}Share result</button>
@@ -622,7 +625,7 @@ function shareText(date, mode) {
   const stars = (n) => '⭐'.repeat(n) + '☆'.repeat(Math.max(0, 3 - n));
   const hints = (n) => '💡 ' + (n ? n + (n === 1 ? ' hint' : ' hints') : 'No hints');
   const l = ['🐾 Petdoku #' + lv + ' · ' + fmtDate(date),
-    (mode === 'level' ? '🎯 Daily level · ' + c.name + ' ' : '⚡ Time attack · ') + c.size + '×' + c.size + (d?.practice ? ' · practice' : ''), ''];
+    (mode === 'level' ? '🎯 Score Attack · ' + c.name + ' ' : '⚡ Time Attack · ') + c.size + '×' + c.size + (d?.practice ? ' · practice' : ''), ''];
   if (d) {
     const perfect = !d.mistakes && !d.hints;
     l.push(stars(d.stars) + '  ' + (mode === 'level' ? d.score + ' pts' : fmtTime(d.adj)) + (perfect ? '  ✨ Perfect run' : ''));

@@ -13,11 +13,12 @@ Mobile-first logic puzzle in the style of Meowdoku / Queens. Place one pet in ev
 
 Everyone gets the same board each day.
 
-- **Two modes**, each with 365 fixed levels (level = day of year, Dec 31 in leap years reuses 365):
-  - **Daily Level**: difficulty cycles Cozy (6×6) to Fierce (10×10). Ranked by score (fewer slips/hints and a faster solve give more points).
+- **Two daily modes**, each with 365 fixed puzzles (puzzle number = day of year, Dec 31 in leap years reuses 365):
+  - **Score Attack**: difficulty cycles Cozy (6×6) to Fierce (10×10). Ranked by score (fewer slips/hints and a faster solve give more points).
   - **Time Attack**: 6×6 to 10×10 race. Ranked by time (+15 s per slip, +30 s per hint).
 - **Profiles** with unique usernames (claimed atomically in Firestore), an animal avatar, streaks and all-time points. Nine animals (cat, dog, rabbit, fox, panda, bear, pig, mouse, frog) are selectable as avatar and as the board piece.
-- **Leaderboards** per day/mode plus all-time. **Share** button produces a text summary.
+- **Leaderboards** per day/mode plus all-time. Pick the day with the arrows, the swipeable day strip (recent days) or the date button, which opens a month calendar for any day back to 1 November 2026. Each day's list shows the board that was solved (for example 7×7 Easy), and each row shows the player's score or time, hearts left and hints used.
+- **Share**: every mode shares its own result, from the share icon on its home card, the result sheet or the out-of-lives sheet. The message is plain text with emoji: puzzle number and date, mode and board size, stars with score or time, solve time, hearts left, hints used (plus the time penalty in Time Attack), "Perfect run" for no slips and no hints, and a link to the game.
 - **Calendar** runs from 1 November 2026; past days are playable as unranked practice.
 - Boards are generated in the browser from a seeded PRNG (`public/js/puzzle.js`) and every one has a unique solution. `npm test` verifies all 730.
 

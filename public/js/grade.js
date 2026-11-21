@@ -28,5 +28,50 @@ export function gradePuzzle({ size: n, regions, solution }) {
   }
   let tier = 0, score = 0;
   TIER.forEach((k, i) => { if (steps[k]) tier = i; score += (WEIGHT[k] || 0) * steps[k]; });
-  return { tier, score, opening, steps };
+  return { tier, score, opening, steps, eye: eyeSolve({ size: n, regions }, false), eye2: eyeSolve({ size: n, regions }, true) };
+}
+
+// "By eye" solver: uses only the steps a player can see on the board without working anything out.
+//   pet     a colour, row or column with one open square: the pet goes there
+//   colour  a colour whose open squares all sit in one row or column: the rest of that line is out
+//   line    (only when `lines` is true) a row or column whose open squares are all one colour: the rest
+//           of that colour is out
+// It never asks "what would happen if a pet went here". Returns whether these steps alone finish the
+// board, how many colour / line steps that took, and how many of them came before the first pet.
+export function eyeSolve({ size: n, regions }, lines) {
+  const N = n * n, open = new Array(N).fill(true), all = [...Array(N).keys()];
+  const key = { region: (i) => regions[i], row: (i) => (i / n) | 0, col: (i) => i % n };
+  const done = { region: new Set(), row: new Set(), col: new Set() };
+  const left = (t, k) => all.filter((i) => open[i] && key[t](i) === k);
+  const out = { solved: false, pets: 0, colour: 0, line: 0, opening: 0 };
+  const cross = (cells, kind) => { cells.forEach((i) => { open[i] = false; }); out[kind]++; if (!out.pets) out.opening++; };
+  const step = () => {
+    for (const t of ['region', 'row', 'col']) for (let k = 0; k < n; k++) {
+      if (done[t].has(k)) continue;
+      const c = left(t, k);
+      if (c.length !== 1) continue;
+      const p = c[0], pr = key.row(p), pc = key.col(p);
+      all.forEach((i) => { if (key.row(i) === pr || key.col(i) === pc || regions[i] === regions[p] || (Math.abs(key.row(i) - pr) <= 1 && Math.abs(key.col(i) - pc) <= 1)) open[i] = false; });
+      done.region.add(regions[p]); done.row.add(pr); done.col.add(pc); out.pets++;
+      return true;
+    }
+    for (const lt of ['row', 'col']) for (let k = 0; k < n; k++) {
+      if (done.region.has(k)) continue;
+      const c = left('region', k), ls = new Set(c.map(key[lt]));
+      if (ls.size !== 1) continue;
+      const rest = left(lt, [...ls][0]).filter((i) => regions[i] !== k);
+      if (rest.length) { cross(rest, 'colour'); return true; }
+    }
+    if (lines) for (const lt of ['row', 'col']) for (let k = 0; k < n; k++) {
+      if (done[lt].has(k)) continue;
+      const c = left(lt, k), rs = new Set(c.map(key.region));
+      if (rs.size !== 1) continue;
+      const rest = left('region', [...rs][0]).filter((i) => key[lt](i) !== k);
+      if (rest.length) { cross(rest, 'line'); return true; }
+    }
+    return false;
+  };
+  while (out.pets < n && step());
+  out.solved = out.pets === n;
+  return out;
 }

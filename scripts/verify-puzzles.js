@@ -6,7 +6,7 @@
 // board must be inside it, and it must be the first attempt that is. That last check rebuilds every
 // earlier attempt, which is slow for 10×10, so hard-band boards are sampled (every 12th day) unless run with --full.
 import { readFileSync } from 'node:fs';
-import { configFor, generatePuzzle, generateGraded, solve, BANK_SETS, BANDS } from '../public/js/puzzle.js';
+import { configFor, generatePuzzle, generateGraded, solve, addDays, BANK_SETS, BANDS } from '../public/js/puzzle.js';
 import { gradePuzzle } from '../public/js/grade.js';
 
 const FULL = process.argv.includes('--full');
@@ -42,9 +42,13 @@ for (const set of BANK_SETS) {
   if (bank[set]?.length !== 365) { bad++; console.log('FAIL', set, 'does not have 365 puzzles'); continue; }
   for (let lv = 1; lv <= 365; lv++) check(set, lv, set === 'time' ? configFor('time', lv) : configFor('level', lv, set), bank[set][lv - 1]);
 }
-// Days before GRADED_FROM: configFor only returns the old seed when given such a date, so pass one.
+// Old boards: configFor only returns their config when given the date they belong to (in 2026).
 for (const [set, byLevel] of Object.entries(bank.old || {})) {
-  for (const [lv, e] of Object.entries(byLevel)) check('old ' + set, +lv, set === 'time' ? configFor('time', +lv, undefined, '2026-11-01') : configFor('level', +lv, set, '2026-11-01'), e);
+  for (const [lv, e] of Object.entries(byLevel)) {
+    const date = addDays('2026-01-01', lv - 1), cfg = set === 'time' ? configFor('time', +lv, undefined, date) : configFor('level', +lv, set, date);
+    if (!cfg.old) { bad++; console.log('FAIL old', set, lv, 'is not an old board on', date); continue; }
+    check('old ' + set, +lv, cfg, e);
+  }
 }
 console.log(`${total} puzzles checked in ${Date.now() - t0}ms (first-attempt check on ${firstChecked}), slowest to generate ${worst}ms [${worstWhere}], failures: ${bad}`);
 process.exit(bad ? 1 : 0);

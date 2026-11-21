@@ -117,14 +117,21 @@ export function generatePuzzle({ size, seed }) {
 // ---- Difficulty bands (Score Attack levels, and Time Attack by board size) ----
 // A level is defined by the reasoning a board needs (see grade.js), not only by its size. miss() is 0
 // when the grade is inside the band, otherwise how far outside it is.
-//   easy      singles and one-colour-one-line steps only, a pet can be placed almost at once
-//   moderate  needs "a pet here would leave that colour with no square" steps, nothing deeper
-//   hard      needs two or three colours locked into as many lines, plus plenty of other steps
+// Easy and Moderate must be solvable "by eye" (eyeSolve in grade.js): every step is something visible on
+// the board, never "what would happen if a pet went here".
+//   easy4      pets with one square left, plus at most two "this colour sits in one row / column" steps,
+//              at most one of them before the first pet
+//   moderate4  the same steps plus "this row / column is all one colour"; three to eight such steps
+//   hard       needs two or three colours locked into as many lines, plus plenty of other steps
 // No band accepts a board the hint engine cannot finish by logic (a "reveal" step).
+// easy and moderate are the first graded bands: they allowed bookkeeping and look-ahead steps. They stay
+// only for the one day played on them (21 Nov 2026).
 const far = (x, lo, hi) => (x < lo ? lo - x : x > hi ? x - hi : 0);
 export const BANDS = {
   easy: (g) => (g.tier > 1 ? 100 * g.tier : 0) + far(g.score, 0, 3) + far(g.opening, 0, 2),
   moderate: (g) => (g.tier === 2 ? 0 : 100 * (1 + Math.abs(g.tier - 2))) + far(g.score, 6, 18),
+  easy4: (g) => (g.eye.solved ? 0 : 100) + far(g.eye.colour, 0, 2) + far(g.eye.opening, 0, 1),
+  moderate4: (g) => (g.eye2.solved ? 0 : 100) + far(g.eye2.colour + g.eye2.line, 3, 8) + far(g.eye2.opening, 0, 4),
   hard: (g) => (g.tier === 3 || g.tier === 4 ? 0 : g.tier === 5 ? 1000 : 100 * (3 - g.tier)) + far(g.score, 20, 1e9),
 };
 export const GRADE_TRIES = 60;
@@ -173,20 +180,27 @@ export const TIERS = [
 ];
 // Boards graded by difficulty start on GRADED_FROM. Dates before it keep the ungraded v2 boards they were
 // played on (stored under "old" in puzzles.json). Callers that only need size or name may omit the date.
-export const GRADED_FROM = '2026-11-21';
+// Easy and Moderate switch to the by-eye bands on EYE_FROM; the one day in between keeps its v3 boards.
+// A config with `old: true` is read from puzzles.json's "old" section.
+export const GRADED_FROM = '2026-11-21', EYE_FROM = '2026-11-22';
 export function configFor(mode, level, diff, date) {
   if (mode === 'level' && DIFFS[diff]) {
-    return date && date < GRADED_FROM ? { ...DIFFS[diff], old: true, seed: `petdoku-v2-${diff}-${level}` }
-      : { ...DIFFS[diff], grade: diff, seed: `petdoku-v3-${diff}-${level}` };
+    if (date && date < GRADED_FROM) return { ...DIFFS[diff], old: true, seed: `petdoku-v2-${diff}-${level}` };
+    if (diff === 'hard') return { ...DIFFS[diff], grade: diff, seed: `petdoku-v3-${diff}-${level}` };
+    return date && date < EYE_FROM ? { ...DIFFS[diff], old: true, grade: diff, seed: `petdoku-v3-${diff}-${level}` }
+      : { ...DIFFS[diff], grade: diff + '4', seed: `petdoku-v4-${diff}-${level}` };
   }
   if (mode === 'level') { const t = TIERS[(level - 1) % 7]; return { ...t, legacy: true, seed: `petdoku-v1-level-${level}` }; }
-  // Time Attack: each day is an 8×8 graded like Moderate or a 10×10 graded like Hard, picked at random
+  // Time Attack: each day is an 8×8 graded like Moderate (by eye) or a 10×10 graded like Hard, picked at random
   // by puzzle number (the same for everyone). Before GRADED_FROM the size cycled 6 to 10 and was ungraded,
   // so the size depends on the date too: pass the date whenever one is known.
   const race = { key: 'time', name: 'Race', base: 0 };
   if (date && date < GRADED_FROM) return { ...race, size: 6 + (level % 5), old: true, seed: `petdoku-v1-time-${level}` };
   const big = hashSeed('petdoku-time-size-' + level) % 2 === 1;
-  return { ...race, size: big ? 10 : 8, grade: big ? 'hard' : 'moderate', seed: `petdoku-v2-time-${level}` };
+  if (big) return { ...race, size: 10, grade: 'hard', seed: `petdoku-v2-time-${level}` };
+  // 8×8: by-eye boards from EYE_FROM, like Moderate; the one day before it keeps its first-band board
+  return date && date < EYE_FROM ? { ...race, size: 8, old: true, grade: 'moderate', seed: `petdoku-v2-time-${level}` }
+    : { ...race, size: 8, grade: 'moderate4', seed: `petdoku-v3-time-${level}` };
 }
 
 export const pad = (n) => String(n).padStart(2, '0');

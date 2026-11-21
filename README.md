@@ -22,13 +22,15 @@ Everyone gets the same board each day.
 - While a leaderboard is loading, pets hop across a lane above a progress bar (shown only if the scores take longer than 150 ms; static when the device asks for reduced motion).
 - **Share**: tapping share copies the message to the clipboard straight away and opens a sheet showing it, with **Share via…** (the device share menu, where the browser has one) and **Copy message**. Every game shares its own result from its result sheet or out-of-lives sheet. The share icon on the Score Attack home card sends a summary of that day's three levels with the total; the one on the Time Attack card sends that result. The message is plain text with emoji: puzzle number and date, mode and board size, stars with score or time, solve time, hearts left, hints used (plus the time penalty in Time Attack), "Perfect run" for no wrong pets and no hints, and a link to the game.
 - **Calendar** runs from 1 November 2026; past days are playable as unranked practice.
-- Boards come from a seeded generator (`public/js/puzzle.js`) and every one has a unique solution. They are pre-built into `public/puzzles.json` with `npm run build:puzzles`, and `npm test` verifies all of them (365 × Easy, Moderate, Hard and Time Attack, plus the 80 older boards kept for 1 to 20 November 2026).
-- **Levels differ by the reasoning they need, not only by size** (from 21 November 2026). `public/js/grade.js` solves each candidate board the way the hint engine does, always taking the simplest step that works, and the generator keeps trying seeds until a board fits its level:
-  - **Easy**: only the two simplest steps (a row, column or colour with one square left; one colour that sits in a single row or column, or the reverse), and a pet can be placed almost straight away.
-  - **Moderate**: also needs the step "a pet here would leave that colour, row or column with no square", and nothing deeper.
-  - **Hard**: needs two or three colours locked into as many rows or columns, on top of plenty of the steps above.
+- Boards come from a seeded generator (`public/js/puzzle.js`) and every one has a unique solution. They are pre-built into `public/puzzles.json` with `npm run build:puzzles`, and `npm test` verifies all of them (365 × Easy, Moderate, Hard and Time Attack, plus the 83 older boards kept for 1 to 21 November 2026).
+- **Levels differ by the reasoning they need, not only by size.** `public/js/grade.js` solves each candidate board and the generator keeps trying seeds until a board fits its level:
+  - **Easy** and **Moderate** can be solved by eye: every step is something you can see on the board, never "what would happen if a pet went here". The visible steps are (1) a colour, row or column with one square left, so the pet goes there; (2) a colour whose open squares all sit in one row or column, so the rest of that line is out; (3) a row or column whose open squares are all one colour, so the rest of that colour is out.
+  - **Easy**: steps 1 and 2 only, with at most two of step 2 and at most one of them before the first pet. About half the Easy boards are a chain of step 1 alone.
+  - **Moderate**: steps 1 to 3, needing three to eight of steps 2 and 3.
+  - **Hard**: needs look-ahead and two or three colours locked into as many rows or columns.
+  - Grading started on 21 November 2026 and the by-eye rule for Easy and Moderate on 22 November; earlier days keep the boards they were played on.
   - No level uses a board the hint engine cannot finish by logic alone.
-  - **Time Attack** uses the same bands: its 8×8 boards are graded as Moderate and its 10×10 boards as Hard. Before 21 November 2026 its size cycled from 6×6 to 10×10 and was not graded; those days keep their boards.
+  - **Time Attack** uses the same bands: its 8×8 boards are graded as Moderate (solvable by eye) and its 10×10 boards as Hard. Before 21 November 2026 its size cycled from 6×6 to 10×10 and was not graded; those days keep their boards.
 
 ## Run locally
 

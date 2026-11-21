@@ -39,6 +39,26 @@ for (const [mode, list] of sets) list.forEach(([k, e]) => {
   maxSteps = Math.max(maxSteps, steps);
 });
 
+// Boards graded by eye (Easy, Moderate, 8×8 Time Attack) with the app's `eye` hints: every step must be
+// sound and none may need look-ahead (no block, no two-colour confine, no reveal).
+let eyeBoards = 0, eyeHints = 0;
+for (const mode of BANK_SETS) bank[mode].forEach((e, k) => {
+  if (e.s > 8 || mode === 'hard') return;
+  const n = e.s, regions = [...e.r].map(Number), solution = [...e.c].map(Number), cells = new Array(n * n).fill(0);
+  const isSol = (i) => solution[(i / n) | 0] === i % n;
+  eyeBoards++;
+  for (let steps = 0; steps < 600; steps++) {
+    const h = nextHint({ n, regions, solution, cells, eye: true });
+    if (!h) break;
+    eyeHints++;
+    if (h.kind === 'block' || h.kind === 'reveal' || (h.kind === 'confine' && h.lines.length > 1)) { fail(`eye hints needed a ${h.kind} step`, mode, k); break; }
+    if (h.kind === 'single' ? !isSol(h.i) : h.cells.some(isSol)) { fail(`eye ${h.kind} hint is unsound`, mode, k); break; }
+    applyHint(cells, h);
+  }
+  if (cells.filter((v) => v === 2).length !== n) fail('eye hints did not finish the puzzle', mode, k);
+});
+console.log(`${eyeBoards} by-eye boards solved with visible-step hints only: ${eyeHints} hints`);
+
 console.log(`${puzzles} puzzles solved with hints only: ${hints} hints, most for one puzzle ${maxSteps}, errors ${bad}`);
 console.log(Object.entries(tally).map(([k, v]) => `${k} ${v}`).join(', '));
 process.exit(bad ? 1 : 0);

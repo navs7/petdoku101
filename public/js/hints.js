@@ -37,7 +37,10 @@ function* combos(arr, k, start = 0, pick = []) {
 //  block   { victim: {type, idx}, cells }       squares that would each leave that unit with no square: cross them out
 //  reveal  { type, idx, i }                     no simple rule applies: place the pet (rare fallback)
 // `cells` are the squares to cross out; `todo` are the ones not crossed on the board yet.
-export function nextHint({ n, regions, solution, cells }) {
+// `eye` (Easy, Moderate and 8×8 Time Attack): look for the steps a player can see first, a colour that
+// sits in one line and then a line that is all one colour, before anything that needs look-ahead. Boards
+// graded by eye never get past those two. The default order is what grade.js measures, so do not change it.
+export function nextHint({ n, regions, solution, cells, eye = false }) {
   const pets = [], dead = [];
   cells.forEach((v, i) => { if (v === 2) pets.push(i); else if (v === 3) dead.push(i); });
   if (pets.length === n) return null;
@@ -68,11 +71,11 @@ export function nextHint({ n, regions, solution, cells }) {
     }
 
     const regs = units.filter((u) => u.type === 'region');
-    const confine = (k) => {
+    const confine = (k, only) => {
       if (k >= regs.length) return null;
       for (const lt of ['row', 'col']) {
         // k colours whose open squares all sit in k lines: those lines belong to those colours
-        for (const combo of combos(regs, k)) {
+        if (only !== 'lines') for (const combo of combos(regs, k)) {
           const ls = new Set(); combo.forEach((u) => u.open.forEach((i) => ls.add(line(lt, i))));
           if (ls.size !== k) continue;
           const ids = new Set(combo.map((u) => u.idx));
@@ -80,7 +83,7 @@ export function nextHint({ n, regions, solution, cells }) {
           if (out.length) return { kind: 'confine', dir: 'regions', lineType: lt, lines: [...ls].sort((a, b) => a - b), regions: [...ids], cells: out, keep: combo.flatMap((u) => u.open) };
         }
         // k lines whose open squares all sit in k colours: those colours' pets are in those lines
-        for (const combo of combos(units.filter((u) => u.type === lt), k)) {
+        if (only !== 'regions') for (const combo of combos(units.filter((u) => u.type === lt), k)) {
           const rs = new Set(); combo.forEach((u) => u.open.forEach((i) => rs.add(regions[i])));
           if (rs.size !== k) continue;
           const ids = new Set(combo.map((u) => u.idx));
@@ -103,7 +106,7 @@ export function nextHint({ n, regions, solution, cells }) {
       return null;
     };
 
-    const step = confine(1) || block() || confine(2) || confine(3);
+    const step = (eye && (confine(1, 'regions') || confine(1, 'lines'))) || confine(1) || block() || confine(2) || confine(3);
     if (!step) break;
     step.todo = step.cells.filter((i) => cells[i] === 0);
     if (step.todo.length) return step;           // not on the board yet: this is the hint

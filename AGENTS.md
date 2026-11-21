@@ -78,6 +78,9 @@ results are rejected by the old rules.
   - The owner's requirement: Easy and Moderate must be deducible by looking at the board, not by working out consequences.
 - **Hints** (`hints.js`): one logical step at a time — `cross` (free), `single`, `confine`, `block`, rare `reveal`.
   A hint never shows more than one pet and never guesses. Charged at most once per pet.
+  The app calls `nextHint` with `eye: true` on boards up to 8×8 (Easy, Moderate, 8×8 Time Attack): the visible steps (colour in one
+  line, then line of one colour) are tried before anything needing look-ahead, and by-eye boards never need more (`verify-hints.js`
+  checks this). The default order without `eye` is what `grade.js` measures; leave it alone.
 
 ## Screens (all in `app.js`)
 

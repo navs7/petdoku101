@@ -590,7 +590,7 @@ function hintView(h) {
     msg: 'No simple rule gives the next step here. Looking a few moves ahead, the pet of the ' + unitLabel(h.type, h.idx) + ' can only go here.' };
 }
 function hint() {
-  const h = nextHint({ n: G.n, regions: G.regions, solution: G.solution, cells: G.cells }); if (!h) return;
+  const h = nextHint({ n: G.n, regions: G.regions, solution: G.solution, cells: G.cells, eye: G.n <= 8 }); if (!h) return; // boards up to 8×8 are the by-eye levels
   // Crossing out around pets you already placed is free. Any other hint is charged when it is shown (it
   // reveals the step), but at most once per pet: every further hint until the next pet is placed is covered.
   const placed = G.cells.filter((v) => v === 2).length, charged = !h.free && G.hintPaid !== placed;
